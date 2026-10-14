@@ -6,7 +6,7 @@ import { MyCompanion, SpeakButton, SpeechBubble } from '../components/shared';
 import { Button, IconButton, Pill, Screen, Sheet, XpBar } from '../components/ui';
 import { GREETINGS, pick } from '../data/messages';
 import { useReducedMotion } from '../lib/hooks';
-import { currentMoment, getRoutine, momentSummary, MOMENTS, openSession, setTrigger, suggestForMoment, TRIGGER_IDEAS, validStepCount } from '../logic/engine';
+import { currentMoment, getRoutine, hasShortVersion, momentSummary, MOMENTS, openSession, setTrigger, suggestForMoment, TRIGGER_IDEAS, validStepCount } from '../logic/engine';
 import type { Moment, Routine } from '../types';
 import { levelProgress, WORLD_STAGE_NAMES } from '../logic/progression';
 import { useApp } from '../store/useApp';
@@ -219,6 +219,11 @@ function QuestCard({ routine, label }: { routine: Routine; label: string }) {
       <Button size="grand" className="mt-4 w-full" icon={open ? <RotateCcw aria-hidden /> : <Play aria-hidden />} onClick={() => startMission(routine.id)}>
         {open ? 'Reprendre' : 'C’est parti !'}
       </Button>
+      {!open && hasShortVersion(routine) && (
+        <Button variant="fantome" size="petit" className="mt-2 w-full" onClick={() => startMission(routine.id, false, true)}>
+          Version courte · {routine.steps.filter((s) => s.essential).length} étapes
+        </Button>
+      )}
       <PlanSheet routine={routine} open={planOpen} onClose={() => setPlanOpen(false)} />
     </section>
   );

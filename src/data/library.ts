@@ -15,12 +15,15 @@ export interface RoutineTemplate {
   moment: Moment;
   trigger: string;
   steps: StepSeed[];
+  /** Positions des étapes indispensables (version courte). */
+  essentials?: number[];
 }
 
 export const LIBRARY: RoutineTemplate[] = [
   // ------------------------------------------------------------ Le matin
   {
     templateId: 'modele-habiller',
+    essentials: [2, 3, 4],
     group: 'Le matin',
     title: 'M’habiller',
     description: 'Des vêtements à l’endroit, dans l’ordre.',
@@ -40,6 +43,7 @@ export const LIBRARY: RoutineTemplate[] = [
   },
   {
     templateId: 'modele-petit-dejeuner',
+    essentials: [1, 2],
     group: 'Le matin',
     title: 'Prendre mon petit-déjeuner',
     description: 'De l’énergie pour la journée.',
@@ -57,6 +61,7 @@ export const LIBRARY: RoutineTemplate[] = [
   },
   {
     templateId: 'modele-dents-matin',
+    essentials: [0, 1, 2],
     group: 'Le matin',
     title: 'Me brosser les dents',
     description: 'Deux minutes pour des dents toutes propres.',
@@ -76,6 +81,7 @@ export const LIBRARY: RoutineTemplate[] = [
   // ------------------------------------------------------------ Le soir
   {
     templateId: 'modele-douche',
+    essentials: [2, 3, 4],
     group: 'Le soir',
     title: 'Prendre ma douche',
     description: 'Propre de la tête aux pieds.',
@@ -94,6 +100,7 @@ export const LIBRARY: RoutineTemplate[] = [
   },
   {
     templateId: 'modele-vetements-demain',
+    essentials: [1, 3],
     group: 'Le soir',
     title: 'Préparer mes vêtements',
     description: 'Le matin, tout est déjà prêt.',
@@ -111,6 +118,7 @@ export const LIBRARY: RoutineTemplate[] = [
   },
   {
     templateId: 'modele-coucher',
+    essentials: [0, 4],
     group: 'Le soir',
     title: 'Me préparer pour dormir',
     description: 'Un coucher calme, étape par étape.',
@@ -131,6 +139,7 @@ export const LIBRARY: RoutineTemplate[] = [
   // ------------------------------------------------------------ L'école
   {
     templateId: 'modele-lecon',
+    essentials: [0, 1, 3],
     group: 'L’école',
     title: 'Apprendre une leçon',
     description: 'Lire, cacher, redire.',
@@ -188,6 +197,7 @@ export const LIBRARY: RoutineTemplate[] = [
   // ------------------------------------------------------------ La maison
   {
     templateId: 'modele-animal',
+    essentials: [0, 1, 2],
     group: 'La maison',
     title: 'Nourrir mon animal',
     description: 'Il compte sur toi.',
@@ -205,6 +215,7 @@ export const LIBRARY: RoutineTemplate[] = [
   },
   {
     templateId: 'modele-mettre-table',
+    essentials: [1, 2, 3],
     group: 'La maison',
     title: 'Mettre la table',
     description: 'Tout le monde a sa place.',

@@ -38,6 +38,8 @@ export interface Step {
   easierText: string;
   /** Outil du coin calme à faire pendant l'étape (facultatif). */
   tool?: ToolId | 'plan';
+  /** Étape indispensable : gardée dans la « version courte » des jours difficiles. */
+  essential?: boolean;
   /** XP gagnés (bornés entre XP_MIN et XP_MAX). */
   xpReward: number;
   order: number;
@@ -60,6 +62,8 @@ export interface Routine {
   moment: Moment;
   /** Identifiant du modèle de la bibliothèque dont elle provient, le cas échéant. */
   templateId?: string;
+  /** Heure du rappel d'agenda (HH:MM), facultative. */
+  reminderTime?: string;
 }
 
 export type SessionStatus = 'en_cours' | 'en_pause' | 'terminee' | 'mise_de_cote';
@@ -80,6 +84,10 @@ export interface Session {
   pauses: number;
   bonusAwarded: boolean;
   totalSteps: number;
+  /** Version courte : seules les étapes indispensables. */
+  short?: boolean;
+  /** Étapes remises à plus tard (reproposées à la fin). */
+  skipped?: string[];
   mood?: Mood;
 }
 

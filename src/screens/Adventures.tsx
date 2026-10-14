@@ -2,7 +2,7 @@ import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { RoutineArt } from '../art/RoutineArt';
 import { Button, IconButton, Pill, Screen } from '../components/ui';
-import { openSession, routineStats, validStepCount } from '../logic/engine';
+import { hasShortVersion, openSession, routineStats, validStepCount } from '../logic/engine';
 import { useApp } from '../store/useApp';
 import type { AidLevel, RoutineCategory } from '../types';
 
@@ -77,12 +77,12 @@ export function Adventures() {
                   <div className="mb-1 flex justify-between text-sm text-encre-700">
                     <span>Commencée</span>
                     <span>
-                      {done} / {r.steps.length} étapes
+                      {done} / {open.totalSteps} étapes{open.short ? ' (version courte)' : ''}
                     </span>
                   </div>
                   <div className="flex gap-1" aria-hidden>
-                    {r.steps.map((st, i) => (
-                      <span key={st.id} className={`h-2 flex-1 rounded-full ${i < done ? 'bg-mousse-500' : 'bg-sable-300'}`} />
+                    {Array.from({ length: open.totalSteps }, (_, i) => (
+                      <span key={i} className={`h-2 flex-1 rounded-full ${i < done ? 'bg-mousse-500' : 'bg-sable-300'}`} />
                     ))}
                   </div>
                 </div>
@@ -94,6 +94,11 @@ export function Adventures() {
                 {open && (
                   <Button variant="fantome" size="petit" onClick={() => startMission(r.id, true)}>
                     Recommencer
+                  </Button>
+                )}
+                {!open && hasShortVersion(r) && (
+                  <Button variant="fantome" size="petit" onClick={() => startMission(r.id, false, true)}>
+                    Version courte
                   </Button>
                 )}
               </div>

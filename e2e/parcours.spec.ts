@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 test('parcours complet avec reprise après actualisation', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  // La page d'accueil dépend du moment de la journée : on se place le soir.
+  await page.clock.setFixedTime(new Date(2026, 9, 14, 19, 0));
   await page.goto('/');
   await page.getByRole('button', { name: 'Commencer' }).click();
   await page.getByRole('radio', { name: /Tika/ }).click();

@@ -10,7 +10,7 @@ import { FINDING_REASONS, getCosmetic } from '../data/cosmetics';
 import { END_AFTER_PAUSE_MESSAGES, END_MESSAGES, pick } from '../data/messages';
 import { useReducedMotion } from '../lib/hooks';
 import { playSound } from '../lib/sound';
-import { chooseReward, getRoutine, respondToOffer, routineStats, setMood, sortedSteps } from '../logic/engine';
+import { chooseReward, getRoutine, respondToOffer, routineStats, setMood, sessionSteps } from '../logic/engine';
 import { WORLD_STAGE_NAMES } from '../logic/progression';
 import { useApp } from '../store/useApp';
 import type { Mood } from '../types';
@@ -57,7 +57,7 @@ export function MissionEnd({ sessionId }: { sessionId: string }) {
   const stats = routineStats(data, routine.id);
   const offer = !offerAnswered ? stats.pendingOffer : null;
   const choice = p.pendingChoices[0];
-  const doneSteps = sortedSteps(routine).filter((st) => session.completedStepIds.includes(st.id));
+  const doneSteps = sessionSteps(routine, session).filter((st) => session.completedStepIds.includes(st.id));
 
   if (resting) {
     return (

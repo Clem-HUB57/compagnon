@@ -161,6 +161,27 @@ describe('Coin calme', () => {
   });
 });
 
+describe('Ajustements', () => {
+  it('permet de remettre une étape à plus tard', () => {
+    withProfile();
+    render(<App />);
+    click('Aventures');
+    const card = screen.getByRole('heading', { name: 'Préparer mon sac' }).closest('li')!;
+    fireEvent.click(within(card).getByRole('button', { name: 'Lancer' }));
+    click('Plus tard');
+    expect(screen.getByRole('heading', { name: /Regarde ce dont/ })).toBeInTheDocument();
+  });
+
+  it('propose une version courte pour les jours difficiles', () => {
+    withProfile();
+    render(<App />);
+    click('Aventures');
+    const card = screen.getByRole('heading', { name: 'Préparer mon sac' }).closest('li')!;
+    fireEvent.click(within(card).getByRole('button', { name: 'Version courte' }));
+    expect(screen.getByText('Étape 1 sur 4')).toBeInTheDocument();
+  });
+});
+
 describe('Espace parent', () => {
   function openParent() {
     withProfile();
@@ -210,6 +231,25 @@ describe('Espace parent', () => {
     const r = useApp.getState().data.routines.find((x) => x.templateId === 'modele-dents-matin');
     expect(r?.moment).toBe('matin');
     expect(screen.getAllByText('Ajoutée').length).toBeGreaterThan(0);
+  });
+
+  it('propose un accompagnement et des pistes pour les parents', () => {
+    openParent();
+    fireEvent.click(screen.getByRole('tab', { name: 'Accompagnement' }));
+    expect(screen.getByText('Cette semaine')).toBeInTheDocument();
+    expect(screen.getByText('Des pistes à explorer')).toBeInTheDocument();
+    expect(screen.getByText(/0 805 382 300/)).toBeInTheDocument();
+  });
+
+  it('ajoute l’étape « Montre à un adulte » et marque une étape indispensable', () => {
+    openParent();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Modifier' })[0]);
+    click('Finir par « Montre à un adulte »');
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Indispensable' })[0]);
+    click('Enregistrer');
+    const r = useApp.getState().data.routines[0];
+    expect(r.steps[r.steps.length - 1]?.title).toBe('Montre à un adulte ce que tu as fait');
+    expect(r.steps[0].essential).toBe(true);
   });
 
   it('affiche les outils de données (export et suppression)', () => {

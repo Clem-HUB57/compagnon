@@ -1,4 +1,6 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarPlus, ChevronDown, ChevronUp, Eye, Plus, Trash2 } from 'lucide-react';
+import { StepPhoto } from '../../components/StepPhoto';
+import { buildReminderIcs, downloadIcs } from '../../lib/calendar';
 import { useState } from 'react';
 import { ILLUSTRATIONS, RoutineArt } from '../../art/RoutineArt';
 import { Button, IconButton } from '../../components/ui';
@@ -6,6 +8,8 @@ import { CALM_TOOLS } from '../../data/calm';
 import { MOMENT_LABELS, newStep } from '../../logic/engine';
 import { XP_MAX, XP_MIN } from '../../logic/progression';
 import type { Moment, Routine, RoutineCategory, Step } from '../../types';
+
+const SHOW_ADULT_TITLE = 'Montre à un adulte ce que tu as fait';
 
 const XP_CHOICES = [5, 10, 15, 20, 25, 30].filter((x) => x >= XP_MIN && x <= XP_MAX);
 
@@ -25,6 +29,12 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
     setR((prev) => ({ ...prev, steps: list.map((s, i) => ({ ...s, order: i })) }));
   };
   const remove = (id: string) => setR((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== id).map((s, i) => ({ ...s, order: i })) }));
+  const [weekdaysOnly, setWeekdaysOnly] = useState(false);
+  const [icsDone, setIcsDone] = useState(false);
+  const addShowAdult = () => {
+    const st = { ...newStep(steps.length), title: SHOW_ADULT_TITLE, description: 'Montre ce que tu as fait et partage ce moment.', helpText: 'Va chercher un adulte et dis : « tu viens voir ? »', easierText: 'Appelle un adulte.' };
+    setR((prev) => ({ ...prev, steps: [...prev.steps, st] }));
+  };
   const add = () => {
     const st = newStep(steps.length);
     setR((prev) => ({ ...prev, steps: [...prev.steps, st] }));
@@ -150,6 +160,10 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
                   <IconButton label="Supprimer l’étape" className="h-9 w-9 text-corail-700" onClick={() => remove(st.id)}>
                     <Trash2 size={18} aria-hidden />
                   </IconButton>
+                  <label className="inline-flex items-center gap-1.5 rounded-xl px-2 py-1 text-sm text-encre-700 hover:bg-sable-100">
+                    <input type="checkbox" className="h-4 w-4 accent-lagon-700" checked={!!st.essential} onChange={(e) => setStep(st.id, { essential: e.target.checked || undefined })} />
+                    Indispensable
+                  </label>
                   <button type="button" className="ml-auto inline-flex items-center gap-1 rounded-xl px-2 py-1 text-sm text-lagon-900 hover:bg-lagon-100" aria-expanded={expanded} onClick={() => setOpenStep(expanded ? null : st.id)}>
                     Détails et aides {expanded ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
                   </button>
@@ -167,6 +181,10 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
                         « Montre-moi comment commencer »
                       </label>
                       <textarea id={`h-${st.id}`} className="champ" rows={2} maxLength={200} value={st.helpText} onChange={(e) => setStep(st.id, { helpText: e.target.value })} />
+                    </div>
+                    <div>
+                      <p className="etiquette">Photo modèle (facultative, gardée sur cet appareil)</p>
+                      <StepPhoto stepId={st.id} compact />
                     </div>
                     <div>
                       <label className="etiquette" htmlFor={`t-${st.id}`}>
@@ -199,9 +217,50 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
             );
           })}
         </ol>
-        <Button variant="doux" className="mt-3 w-full" icon={<Plus aria-hidden />} onClick={add}>
-          Ajouter une étape
-        </Button>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <Button variant="doux" icon={<Plus aria-hidden />} onClick={add}>
+            Ajouter une étape
+          </Button>
+          {!steps.some((s) => s.title === SHOW_ADULT_TITLE) && (
+            <Button variant="doux" icon={<Eye aria-hidden />} onClick={addShowAdult}>
+              Finir par « Montre à un adulte »
+            </Button>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-encre-500">
+          Cochez « Indispensable » sur les étapes à garder les jours difficiles : l’enfant pourra alors choisir la version courte. « Montre à un adulte » crée un moment de fierté partagé, sans contrôle.
+        </p>
+      </section>
+
+      <section className="rounded-3xl bg-white p-4 shadow-carte">
+        <h3 className="font-semibold">Rappel dans l’agenda du téléphone</h3>
+        <p className="mt-1 text-sm text-encre-700">L’app n’envoie pas de notification (elle n’a pas de serveur). Elle crée un rendez-vous qui se répète, avec une alerte, dans l’agenda de cet appareil.</p>
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="etiquette" htmlFor="r-rappel">
+              Heure
+            </label>
+            <input id="r-rappel" type="time" className="champ w-36" value={r.reminderTime ?? ''} onChange={(e) => setR({ ...r, reminderTime: e.target.value || undefined })} />
+          </div>
+          <label className="mb-3 inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4 accent-lagon-700" checked={weekdaysOnly} onChange={(e) => setWeekdaysOnly(e.target.checked)} />
+            Du lundi au vendredi seulement
+          </label>
+          <Button
+            variant="secondaire"
+            size="petit"
+            className="mb-1"
+            icon={<CalendarPlus size={18} aria-hidden />}
+            disabled={!r.reminderTime}
+            onClick={() => {
+              downloadIcs(`rappel-${r.title.toLowerCase().replace(/[^a-z0-9]+/gi, '-')}.ics`, buildReminderIcs({ title: r.title, time: r.reminderTime!, weekdaysOnly, uid: r.id }));
+              setIcsDone(true);
+            }}
+          >
+            Ajouter à mon agenda
+          </Button>
+        </div>
+        {icsDone && <p className="mt-2 text-sm text-mousse-700" role="status">Ouvrez le fichier téléchargé : votre agenda propose d’ajouter le rappel.</p>}
       </section>
 
       <div className="sticky bottom-0 -mx-1 flex flex-wrap gap-2 bg-sable-100/95 px-1 py-3 backdrop-blur">

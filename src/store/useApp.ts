@@ -35,7 +35,7 @@ interface AppStore {
   init: () => Promise<void>;
   update: (fn: (s: AppState) => AppState) => void;
   navigate: (route: Route, replace?: boolean) => void;
-  startMission: (routineId: string, restart?: boolean) => void;
+  startMission: (routineId: string, restart?: boolean, short?: boolean) => void;
   completeSteps: (sessionId: string, stepIds: string[]) => ActionEvents;
   wipeAll: () => Promise<void>;
 }
@@ -93,10 +93,10 @@ export const useApp = create<AppStore>((set, get) => ({
     }
   },
 
-  startMission: (routineId, restart = false) => {
+  startMission: (routineId, restart = false, short = false) => {
     const before = get().data;
     const wasPaused = engine.openSession(before, routineId)?.status === 'en_pause';
-    const r = restart ? { ...engine.restartRoutine(before, routineId), resumed: false } : engine.startOrResume(before, routineId);
+    const r = restart ? { ...engine.restartRoutine(before, routineId, new Date(), { short }), resumed: false } : engine.startOrResume(before, routineId, new Date(), { short });
     set({
       data: r.state,
       mission: {

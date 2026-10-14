@@ -18,7 +18,7 @@ export function steps(routineId: string, seeds: StepSeed[]): Step[] {
   }));
 }
 
-export const DEMO_ROUTINES: Routine[] = [
+const DEMO_LIST: Routine[] = [
   {
     id: 'preparer-sac',
     title: 'Préparer mon sac',
@@ -153,3 +153,19 @@ export const DEMO_ROUTINES: Routine[] = [
     ])
   }
 ];
+
+/** Étapes indispensables (version courte des jours difficiles), par position. */
+const DEMO_ESSENTIALS: Record<string, number[]> = {
+  'preparer-sac': [1, 2, 3, 5],
+  'commencer-devoirs': [1, 2, 4],
+  'ranger-activite': [1, 2],
+  'debarrasser-table': [0, 1],
+  'linge-sale': [0, 2]
+};
+
+export function markEssentials<T extends { steps: Step[] }>(routine: T, indices: number[] | undefined): T {
+  if (!indices) return routine;
+  return { ...routine, steps: routine.steps.map((st, i) => (indices.includes(i) ? { ...st, essential: true } : st)) };
+}
+
+export const DEMO_ROUTINES: Routine[] = DEMO_LIST.map((r) => markEssentials(r, DEMO_ESSENTIALS[r.id]));

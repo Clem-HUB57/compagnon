@@ -32,11 +32,15 @@ import {
   setTrigger,
   completeCalmTool,
   setCalmPlan,
+  skipStep,
+  sessionSteps,
+  hasShortVersion,
   upsertRoutine
 } from '../src/logic/engine';
 import { COMPLETION_BONUS, levelForXp, thresholdFor, worldStageForLevel } from '../src/logic/progression';
 import type { AppState } from '../src/types';
 import { LIBRARY } from '../src/data/library';
+import { buildReminderIcs } from '../src/lib/calendar';
 
 function fresh(): AppState {
   return setProfile(createInitialState(), 'Léa', 'moki', 'Moki');
@@ -371,5 +375,70 @@ describe('Coin calme', () => {
     const s = parseImport(JSON.stringify(old));
     expect(s.calm).toEqual({ plan: null, history: [] });
     expect(completeCalmTool(s, 'eau').state.progression.eventCounts.calme).toBe(1);
+  });
+});
+
+describe('Ajustements recommandés par les familles', () => {
+  it('une étape remise à plus tard revient à la fin, sans rien perdre', () => {
+    const { state: s1, sessionId } = startOrResume(fresh(), 'preparer-sac');
+    const steps = sortedSteps(getRoutine(s1, 'preparer-sac')!);
+    const s2 = skipStep(s1, sessionId, steps[0].id);
+    const sess = s2.sessions[0];
+    const order = remainingSteps(getRoutine(s2, 'preparer-sac')!, sess).map((x) => x.id);
+    expect(order[0]).toBe(steps[1].id);
+    expect(order[order.length - 1]).toBe(steps[0].id);
+    // On peut finir la routine en faisant l'étape gardée en dernier.
+    let s = s2;
+    let events = null;
+    for (const id of order) {
+      const r = completeStep(s, sessionId, id);
+      s = r.state;
+      events = r.events;
+    }
+    expect(events!.sessionCompleted).toBe(true);
+  });
+
+  it('la version courte ne garde que les étapes indispensables', () => {
+    const routine = getRoutine(fresh(), 'preparer-sac')!;
+    expect(hasShortVersion(routine)).toBe(true);
+    const { state: s1, sessionId } = startOrResume(fresh(), 'preparer-sac', new Date(), { short: true });
+    const sess = s1.sessions[0];
+    const scope = sessionSteps(routine, sess);
+    expect(sess.totalSteps).toBe(4);
+    expect(scope.every((x) => x.essential)).toBe(true);
+    let s = s1;
+    let events = null;
+    for (const st of scope) {
+      const r = completeStep(s, sessionId, st.id);
+      s = r.state;
+      events = r.events;
+    }
+    expect(events!.sessionCompleted).toBe(true);
+    expect(s.progression.totalXp).toBe(4 * 10 + 20);
+  });
+
+  it('sans étape indispensable, pas de version courte', () => {
+    const r = getRoutine(fresh(), 'nettoyer-toilettes')!;
+    expect(hasShortVersion(r)).toBe(false);
+    const { state } = startOrResume(fresh(), 'nettoyer-toilettes', new Date(), { short: true });
+    expect(state.sessions[0].short).toBe(false);
+    expect(state.sessions[0].totalSteps).toBe(r.steps.length);
+  });
+
+  it('les modèles de la bibliothèque arrivent avec leurs étapes indispensables', () => {
+    const tpl = LIBRARY.find((t) => t.templateId === 'modele-habiller')!;
+    const r = addFromLibrary(fresh(), tpl);
+    expect(getRoutine(r.state, r.routineId)!.steps.filter((st) => st.essential)).toHaveLength(3);
+  });
+
+  it('crée un rappel d’agenda quotidien ou en semaine', () => {
+    const ics = buildReminderIcs({ title: 'Préparer mon sac', time: '18:30', weekdaysOnly: true, now: new Date(2026, 9, 14, 10, 0), uid: 'abc' });
+    expect(ics).toContain('BEGIN:VCALENDAR');
+    expect(ics).toContain('DTSTART:20261014T183000');
+    expect(ics).toContain('RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR');
+    expect(ics).toContain('BEGIN:VALARM');
+    const later = buildReminderIcs({ title: 'X', time: '08:00', weekdaysOnly: false, now: new Date(2026, 9, 14, 10, 0), uid: 'b' });
+    expect(later).toContain('DTSTART:20261015T080000');
+    expect(later).toContain('RRULE:FREQ=DAILY');
   });
 });

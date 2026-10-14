@@ -1,4 +1,5 @@
-import { ArrowLeft, BookOpen, Check, Download, FileUp, Info, Pencil, Plus, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, ChevronDown, Download, ExternalLink, FileUp, Heart, Info, Lock, Pencil, Plus, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
+import { SUPPORT_CHECKED_ON, SUPPORT_SECTIONS, weeklyTip } from '../../data/support';
 import { useMemo, useRef, useState } from 'react';
 import { RoutineArt } from '../../art/RoutineArt';
 import { Button, IconButton, Pill, Sheet } from '../../components/ui';
@@ -10,10 +11,11 @@ import type { AidLevel, AppState, Routine, Session } from '../../types';
 import { AID_LABELS } from '../Adventures';
 import { RoutineEditor } from './RoutineEditor';
 
-type Tab = 'routines' | 'historique' | 'reglages' | 'donnees' | 'aide';
+type Tab = 'routines' | 'accompagnement' | 'historique' | 'reglages' | 'donnees' | 'aide';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'routines', label: 'Routines' },
+  { id: 'accompagnement', label: 'Accompagnement' },
   { id: 'historique', label: 'Historique' },
   { id: 'reglages', label: 'Réglages' },
   { id: 'donnees', label: 'Données' },
@@ -96,6 +98,7 @@ export function Parent() {
       </nav>
       <div className="mt-5" role="tabpanel">
         {tab === 'routines' && <RoutinesTab />}
+        {tab === 'accompagnement' && <SupportTab />}
         {tab === 'historique' && <HistoryTab />}
         {tab === 'reglages' && <SettingsTab />}
         {tab === 'donnees' && <DataTab />}
@@ -239,6 +242,57 @@ function RoutinesTab() {
         );
       })}
       <p className="text-sm text-encre-500">Les routines marquées « Exemple » sont des données de démonstration : adaptez-les librement à votre quotidien.</p>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Accompagnement
+
+function SupportTab() {
+  const tip = weeklyTip();
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="carte bg-lagon-100 p-5">
+        <p className="flex items-center gap-2 text-sm font-medium text-lagon-900">
+          <Heart size={16} aria-hidden /> Cette semaine
+        </p>
+        <p className="mt-2 text-lg font-semibold">{tip.tip}</p>
+        {tip.say && <p className="mt-1 text-encre-700">À essayer : {tip.say}</p>}
+      </section>
+      <section className="carte p-5">
+        <h2 className="font-semibold">Les jours sans</h2>
+        <p className="mt-1 text-sm text-encre-700">
+          Il y aura des jours où rien ne démarre. C’est normal, pour l’enfant comme pour vous. L’app ne perd rien et ne fait aucun reproche : reprenez simplement au moment habituel. Les petites routines gagnent sur la durée, pas en une semaine.
+        </p>
+      </section>
+      <div>
+        <h2 className="text-xl font-semibold">Des pistes à explorer</h2>
+        <p className="mt-1 text-sm text-encre-700">
+          Compagnon aide au quotidien, mais ne remplace ni un bilan, ni un accompagnement. Voici des pistes, en France, pour aller plus loin. Informations générales vérifiées le {SUPPORT_CHECKED_ON} : demandez toujours conseil à un professionnel.
+        </p>
+      </div>
+      {SUPPORT_SECTIONS.map((sec) => (
+        <details key={sec.id} className="carte group p-5" open={sec.id === 'sante'}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
+            {sec.title}
+            <ChevronDown size={18} className="shrink-0 transition group-open:rotate-180" aria-hidden />
+          </summary>
+          <p className="mt-2 text-sm text-encre-700">{sec.intro}</p>
+          <ul className="mt-3 flex flex-col gap-3">
+            {sec.items.map((it) => (
+              <li key={it.title} className="rounded-2xl bg-sable-100 p-4">
+                <p className="font-medium">{it.title}</p>
+                <p className="mt-1 text-sm text-encre-700">{it.text}</p>
+                {it.link && (
+                  <a href={it.link.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-lagon-900 underline underline-offset-2">
+                    {it.link.label} <ExternalLink size={14} aria-hidden />
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
     </div>
   );
 }
@@ -549,6 +603,24 @@ function HelpTab() {
           <li>Ouvrez l’application dans Chrome.</li>
           <li>Touchez le menu ⋮ en haut à droite.</li>
           <li>Choisissez « Installer l’application » ou « Ajouter à l’écran d’accueil ».</li>
+        </ol>
+      </section>
+      <section className="carte p-5">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <Lock aria-hidden /> Verrouiller l’appareil sur Compagnon
+        </h2>
+        <p className="mt-1 text-sm text-encre-700">Pendant une routine, l’appareil ne sert qu’à ça : pas de jeux ni de vidéos à portée de doigt. C’est gratuit et intégré au téléphone.</p>
+        <h3 className="mt-3 font-medium">iPhone et iPad : l’Accès guidé</h3>
+        <ol className="ml-5 mt-1 list-decimal text-sm text-encre-700">
+          <li>Réglages, puis Accessibilité, puis Accès guidé : activez-le et choisissez un code.</li>
+          <li>Ouvrez Compagnon, puis appuyez trois fois sur le bouton latéral (ou le bouton principal) et touchez « Démarrer ».</li>
+          <li>Pour sortir : trois appuis sur le bouton, puis le code.</li>
+        </ol>
+        <h3 className="mt-3 font-medium">Android : l’épinglage d’écran</h3>
+        <ol className="ml-5 mt-1 list-decimal text-sm text-encre-700">
+          <li>Paramètres, puis Sécurité (ou Sécurité et confidentialité), puis Épinglage d’application : activez-le.</li>
+          <li>Ouvrez Compagnon, affichez les applis récentes, touchez l’icône de l’app puis « Épingler ».</li>
+          <li>Les intitulés exacts varient selon la marque du téléphone.</li>
         </ol>
       </section>
       <section className="carte p-5">

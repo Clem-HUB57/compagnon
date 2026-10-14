@@ -1,4 +1,5 @@
-import { ArrowRight, Check, Circle, Coffee, HandHelping, Hourglass as HourglassIcon, Lightbulb, ListChecks, Sparkle, Wand2, Wind, X } from 'lucide-react';
+import { ArrowRight, Check, Circle, Coffee, HandHelping, Hourglass as HourglassIcon, Lightbulb, ListChecks, Redo2, Sparkle, Wand2, Wind, X } from 'lucide-react';
+import { StepPhoto } from '../components/StepPhoto';
 import { CalmPlanEditor, CalmToolRunner } from './Calm';
 import { Hourglass } from '../components/Hourglass';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -9,7 +10,7 @@ import { Button, IconButton, Screen, Sheet, XpBar } from '../components/ui';
 import { PAUSE_MESSAGES, pick, STEP_AFTER_HELP_MESSAGES, STEP_MESSAGES } from '../data/messages';
 import { playSound } from '../lib/sound';
 import { speak, stopSpeaking } from '../lib/voice';
-import { condensedBlocks, getRoutine, pauseSession, recordHelp, resumeSession, setAidLevel, sortedSteps } from '../logic/engine';
+import { condensedBlocks, getRoutine, pauseSession, recordHelp, remainingSteps, resumeSession, sessionSteps, setAidLevel, skipStep, validStepCount } from '../logic/engine';
 import { levelProgress } from '../logic/progression';
 import { useApp } from '../store/useApp';
 import type { Step } from '../types';
@@ -44,8 +45,8 @@ export function Mission({ sessionId }: { sessionId: string }) {
   // Unité de travail courante selon le niveau d'aide
   const unit = useMemo(() => {
     if (!routine || !session) return null;
-    const all = sortedSteps(routine);
-    const remaining = all.filter((st) => !session.completedStepIds.includes(st.id));
+    const all = sessionSteps(routine, session);
+    const remaining = remainingSteps(routine, session);
     if (remaining.length === 0) return null;
     if (session.aidLevel === 'autonome') {
       return { steps: remaining, index: 0, total: 1, label: 'Toute la routine', title: routine.title };
@@ -56,8 +57,16 @@ export function Mission({ sessionId }: { sessionId: string }) {
       const block = blocks[idx].filter((st) => !session.completedStepIds.includes(st.id));
       return { steps: block, index: idx, total: blocks.length, label: `Bloc ${idx + 1} sur ${blocks.length}`, title: block.length === 1 ? block[0].title : `${block.length} étapes d’un coup` };
     }
-    const idx = all.findIndex((st) => st.id === remaining[0].id);
-    return { steps: [remaining[0]], index: idx, total: all.length, label: `Étape ${idx + 1} sur ${all.length}`, title: remaining[0].title };
+    const done = all.length - remaining.length;
+    const isLater = (session.skipped ?? []).includes(remaining[0].id);
+    return {
+      steps: [remaining[0]],
+      index: done,
+      total: all.length,
+      label: isLater ? 'On revient à l’étape gardée pour plus tard' : `Étape ${done + 1} sur ${all.length}`,
+      title: remaining[0].title,
+      canSkip: remaining.length > 1 && !isLater
+    };
   }, [routine, session]);
 
   const current: Step | undefined = unit?.steps[0];
@@ -83,8 +92,9 @@ export function Mission({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const totalSteps = routine.steps.length;
-  const doneCount = routine.steps.filter((st) => session.completedStepIds.includes(st.id)).length;
+  const scope = sessionSteps(routine, session);
+  const totalSteps = scope.length;
+  const doneCount = validStepCount(routine, session);
   const lp = levelProgress(data.progression.totalXp);
 
   const leave = () => {
@@ -135,7 +145,7 @@ export function Mission({ sessionId }: { sessionId: string }) {
         <div className="flex-1">
           <p className="text-center text-sm font-medium text-encre-700">{routine.title}</p>
           <ol className="mt-1.5 flex gap-1" aria-label={`${doneCount} étapes faites sur ${totalSteps}`}>
-            {sortedSteps(routine).map((st) => {
+            {scope.map((st) => {
               const isDone = session.completedStepIds.includes(st.id);
               const isNow = unit?.steps.some((u) => u.id === st.id);
               return (
@@ -189,6 +199,11 @@ export function Mission({ sessionId }: { sessionId: string }) {
                 {current.tool === 'plan' ? 'Ouvrir mon plan tempête' : 'Faire l’exercice avec mon compagnon'}
               </Button>
             )}
+            {unit.steps.length === 1 && (
+              <div className="mt-3">
+                <StepPhoto stepId={current.id} compact />
+              </div>
+            )}
           </section>
           <div className="flex flex-1 flex-col items-center justify-center gap-2 py-4">
             {startedBanner && <SpeechBubble className="text-center">Tu as commencé, c’est le plus dur ! On continue ?</SpeechBubble>}
@@ -201,9 +216,23 @@ export function Mission({ sessionId }: { sessionId: string }) {
             <Button size="grand" onClick={validate} disabled={busy} icon={<Check aria-hidden size={28} />} silent>
               C’est fait !
             </Button>
-            <Button variant="secondaire" onClick={() => setHelpOpen(true)} icon={<HandHelping aria-hidden />}>
-              J’ai besoin d’aide
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondaire" className="flex-1" onClick={() => setHelpOpen(true)} icon={<HandHelping aria-hidden />}>
+                J’ai besoin d’aide
+              </Button>
+              {'canSkip' in unit && unit.canSkip && (
+                <Button
+                  variant="fantome"
+                  icon={<Redo2 aria-hidden />}
+                  onClick={() => {
+                    update((s) => skipStep(s, sessionId, current.id));
+                    setStartedBanner(false);
+                  }}
+                >
+                  Plus tard
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -394,7 +423,7 @@ export function Mission({ sessionId }: { sessionId: string }) {
       {/* ------------------------------------------------ Liste des étapes */}
       <Sheet open={listOpen} onClose={() => setListOpen(false)} title="Les étapes">
         <ol className="flex flex-col gap-2">
-          {sortedSteps(routine).map((st, i) => {
+          {scope.map((st, i) => {
             const isDone = session.completedStepIds.includes(st.id);
             const isNow = unit?.steps.some((u) => u.id === st.id);
             return (

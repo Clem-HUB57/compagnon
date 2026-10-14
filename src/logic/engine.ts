@@ -5,7 +5,7 @@ import { COSMETICS, FINDING_MILESTONES, STARTING_COSMETICS } from '../data/cosme
 import { DEMO_ROUTINES } from '../data/routines';
 import { CALM_XP, CALM_XP_PER_DAY, type ToolId } from '../data/calm';
 import { type RoutineTemplate } from '../data/library';
-import { steps } from '../data/routines';
+import { markEssentials, steps } from '../data/routines';
 import type {
   ActionEvents,
   DayMoments,
@@ -119,19 +119,47 @@ export function openSession(state: AppState, routineId: string): Session | undef
 }
 
 /** Étapes de la routine pas encore validées dans cette session, dans l'ordre. */
+/** Vrai si la routine a des étapes marquées indispensables (version courte possible). */
+export function hasShortVersion(routine: Routine): boolean {
+  const n = routine.steps.filter((s) => s.essential).length;
+  return n > 0 && n < routine.steps.length;
+}
+
+/** Étapes concernées par la session (toutes, ou seulement les indispensables en version courte). */
+export function sessionSteps(routine: Routine, session: Pick<Session, 'short'>): Step[] {
+  const all = sortedSteps(routine);
+  if (!session.short) return all;
+  const essentials = all.filter((s) => s.essential);
+  return essentials.length > 0 ? essentials : all;
+}
+
+/** Étapes restantes, dans l'ordre ; celles remises « à plus tard » passent à la fin. */
 export function remainingSteps(routine: Routine, session: Session): Step[] {
-  return sortedSteps(routine).filter((st) => !session.completedStepIds.includes(st.id));
+  const left = sessionSteps(routine, session).filter((st) => !session.completedStepIds.includes(st.id));
+  const skipped = session.skipped ?? [];
+  const now = left.filter((st) => !skipped.includes(st.id));
+  const later = skipped.map((id) => left.find((st) => st.id === id)).filter((st): st is Step => !!st);
+  return [...now, ...later];
 }
 
 export function validStepCount(routine: Routine, session: Session): number {
-  const ids = new Set(routine.steps.map((x) => x.id));
+  const ids = new Set(sessionSteps(routine, session).map((x) => x.id));
   return session.completedStepIds.filter((id) => ids.has(id)).length;
+}
+
+/** L'enfant remet une étape à plus tard (salle de bain occupée, objet introuvable…). */
+export function skipStep(state: AppState, sessionId: string, stepId: string): AppState {
+  const s = clone(state);
+  const sess = s.sessions.find((x) => x.id === sessionId);
+  if (!sess || sess.completedStepIds.includes(stepId)) return state;
+  sess.skipped = [...(sess.skipped ?? []).filter((id) => id !== stepId), stepId];
+  return s;
 }
 
 // ---------------------------------------------------------------- Sessions
 
 /** Lance une routine, ou reprend la session ouverte sans perdre les étapes déjà faites. */
-export function startOrResume(state: AppState, routineId: string, now = new Date()): { state: AppState; sessionId: string; resumed: boolean } {
+export function startOrResume(state: AppState, routineId: string, now = new Date(), opts: { short?: boolean } = {}): { state: AppState; sessionId: string; resumed: boolean } {
   const routine = getRoutine(state, routineId);
   if (!routine) throw new Error(`Routine introuvable : ${routineId}`);
   const existing = openSession(state, routineId);
@@ -157,21 +185,24 @@ export function startOrResume(state: AppState, routineId: string, now = new Date
     helpUsed: 0,
     pauses: 0,
     bonusAwarded: false,
-    totalSteps: routine.steps.length
+    totalSteps: 0,
+    short: !!opts.short && hasShortVersion(routine),
+    skipped: []
   };
+  session.totalSteps = sessionSteps(routine, session).length;
   s.sessions.push(session);
   return { state: s, sessionId: session.id, resumed: false };
 }
 
 /** Met de côté une session ouverte pour repartir de zéro (les XP gagnés restent acquis). */
-export function restartRoutine(state: AppState, routineId: string, now = new Date()): { state: AppState; sessionId: string } {
+export function restartRoutine(state: AppState, routineId: string, now = new Date(), opts: { short?: boolean } = {}): { state: AppState; sessionId: string } {
   const s = clone(state);
   for (const sess of s.sessions) {
     if (sess.routineId === routineId && (sess.status === 'en_cours' || sess.status === 'en_pause')) {
       sess.status = 'mise_de_cote';
     }
   }
-  const r = startOrResume(s, routineId, now);
+  const r = startOrResume(s, routineId, now, opts);
   return { state: r.state, sessionId: r.sessionId };
 }
 
@@ -231,7 +262,7 @@ export function completeSteps(state: AppState, sessionId: string, stepIds: strin
     gained += clampXp(step.xpReward);
   }
 
-  const allDone = routine.steps.every((st) => sess.completedStepIds.includes(st.id));
+  const allDone = sessionSteps(routine, sess).every((st) => sess.completedStepIds.includes(st.id));
   if (allDone && !sess.bonusAwarded) {
     sess.bonusAwarded = true;
     gained += COMPLETION_BONUS;
@@ -477,7 +508,7 @@ export function upsertRoutine(state: AppState, routine: Routine): AppState {
   // Les sessions ouvertes gardent leurs étapes validées ; le total est mis à jour.
   for (const sess of s.sessions) {
     if (sess.routineId === cleaned.id && sess.status !== 'terminee' && sess.status !== 'mise_de_cote') {
-      sess.totalSteps = cleaned.steps.length;
+      sess.totalSteps = sessionSteps(cleaned, sess).length;
       sess.routineTitle = cleaned.title;
     }
   }
@@ -652,7 +683,7 @@ export function addFromLibrary(state: AppState, template: RoutineTemplate): { st
     isCustom: false,
     isDemo: false,
     templateId: template.templateId,
-    steps: steps(id, template.steps)
+    steps: markEssentials({ steps: steps(id, template.steps) }, template.essentials).steps
   };
   s.routines.push(routine);
   return { state: s, routineId: id };
