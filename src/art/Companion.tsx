@@ -22,7 +22,14 @@ const VARIANTS: Record<string, Palette> = {
   'couleur-lavande': { main: '#C6B4EE', dark: '#9279D1', light: '#F2ECFD' },
   'couleur-ocean': { main: '#83B8EA', dark: '#4C84C0', light: '#DFECFA' },
   'couleur-miel': { main: '#F4C171', dark: '#D08E36', light: '#FDEDCD' },
-  'couleur-nuit': { main: '#6B78AE', dark: '#434D84', light: '#D3D8F1' }
+  'couleur-nuit': { main: '#6B78AE', dark: '#434D84', light: '#D3D8F1' },
+  'couleur-corail': { main: '#F59A7F', dark: '#D46E52', light: '#FFE0D6' },
+  'couleur-citron': { main: '#F0DA6A', dark: '#C9AE36', light: '#FFF7C9' },
+  'couleur-foret': { main: '#5FAE7A', dark: '#3E8257', light: '#D6EFD9' },
+  'couleur-bonbon': { main: '#F5A9C8', dark: '#DB7AA2', light: '#FFE6F0' },
+  'couleur-glacier': { main: '#A6D9EA', dark: '#6CB0C9', light: '#E9F7FB' },
+  'couleur-galaxie': { main: '#8470D1', dark: '#55449E', light: '#DED6F8' },
+  'couleur-or': { main: '#E8C25B', dark: '#B68E2E', light: '#FFF1C7' }
 };
 
 export function paletteFor(id: CompanionId, color: string): Palette {

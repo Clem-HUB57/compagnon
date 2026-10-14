@@ -1,5 +1,6 @@
 import { ArrowRight, Check, Circle, Coffee, HandHelping, Hourglass as HourglassIcon, Lightbulb, ListChecks, Redo2, Sparkle, Star, Wand2, Wind, X } from 'lucide-react';
 import { StepPhoto } from '../components/StepPhoto';
+import { PlanBridge, planSentence } from '../components/PlanBridge';
 import { CalmPlanEditor, CalmToolRunner } from './Calm';
 import { Hourglass } from '../components/Hourglass';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -71,18 +72,28 @@ export function Mission({ sessionId }: { sessionId: string }) {
 
   const current: Step | undefined = unit?.steps[0];
   const recording = useRecording(unit && unit.steps.length === 1 ? current?.id : undefined);
+  const planIntro = useApp((s) => (s.mission?.sessionId === sessionId ? s.mission.planIntro : false));
+  const endIntro = () => useApp.setState((s) => (s.mission ? { mission: { ...s.mission, planIntro: false } } : {}));
 
   // Lecture automatique (si activée) et focus sur le titre à chaque nouvelle étape
   useEffect(() => {
-    if (view !== 'etape' || !unit) return;
+    if (view !== 'etape' || !unit || planIntro) return;
     headingRef.current?.focus();
     if (data.preferences.voiceEnabled && data.preferences.autoRead) {
       if (recording) playAudio(recording);
       else speak(unit.title);
     }
-  }, [unit?.title, view, recording]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [unit?.title, view, recording, planIntro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => stopSpeaking(), []);
+
+  // Petit rituel de lancement : on relie le moment choisi à l'action.
+  useEffect(() => {
+    if (!planIntro || !routine) return;
+    if (data.preferences.voiceEnabled && data.preferences.autoRead) speak(`C’est le moment ! ${planSentence(routine)}`);
+    const t = window.setTimeout(endIntro, 2200);
+    return () => window.clearTimeout(t);
+  }, [planIntro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Après une petite fête, on passe tout seul à l'étape suivante.
   useEffect(() => {
@@ -189,8 +200,20 @@ export function Mission({ sessionId }: { sessionId: string }) {
         </IconButton>
       </header>
 
+      {/* ------------------------------------------------ Rituel du plan */}
+      {planIntro && view === 'etape' && (
+        <button type="button" className="flex flex-1 animate-apparait flex-col items-center justify-center gap-5 text-center" onClick={endIntro} aria-live="polite">
+          <MyCompanion size={150} expression="joie" bounceKey={1} />
+          <p className="text-3xl font-semibold text-corail-700">C’est le moment !</p>
+          <div className="w-full">
+            <PlanBridge routine={routine} big />
+          </div>
+          <span className="text-sm text-encre-500">Touche l’écran pour commencer</span>
+        </button>
+      )}
+
       {/* ------------------------------------------------ Étape */}
-      {view === 'etape' && unit && current && (
+      {view === 'etape' && !planIntro && unit && current && (
         <div className="flex flex-1 animate-apparait flex-col" key={current.id}>
           <p className="mb-2 mt-5 text-sm font-medium text-lagon-700">{unit.label}</p>
           <section className="carte p-6" aria-live="polite">

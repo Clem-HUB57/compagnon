@@ -26,6 +26,8 @@ export interface MissionContext {
   badge: ActionEvents['badge'];
   offer: ActionEvents['offer'];
   resumedAfterPause: boolean;
+  /** Afficher le rappel du plan « Quand…, alors… » au lancement. */
+  planIntro: boolean;
 }
 
 interface AppStore {
@@ -97,7 +99,9 @@ export const useApp = create<AppStore>((set, get) => ({
 
   startMission: (routineId, restart = false, short = false) => {
     const before = get().data;
-    const wasPaused = engine.openSession(before, routineId)?.status === 'en_pause';
+    const wasOpen = engine.openSession(before, routineId);
+    const wasPaused = wasOpen?.status === 'en_pause';
+    const hasPlan = !!engine.getRoutine(before, routineId)?.trigger.trim();
     const r = restart ? { ...engine.restartRoutine(before, routineId, new Date(), { short }), resumed: false } : engine.startOrResume(before, routineId, new Date(), { short });
     set({
       data: r.state,
@@ -108,7 +112,8 @@ export const useApp = create<AppStore>((set, get) => ({
         findings: [],
         badge: null,
         offer: null,
-        resumedAfterPause: !restart && wasPaused
+        resumedAfterPause: !restart && wasPaused,
+        planIntro: hasPlan && (restart || !wasOpen)
       }
     });
     scheduleSave(get, set);

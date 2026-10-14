@@ -7,7 +7,17 @@ function withProfile() {
   resetStoreForTests(setProfile(createInitialState(), 'Léa', 'lyra', 'Lyra'));
 }
 
-const click = (name: RegExp | string) => fireEvent.click(screen.getByRole('button', { name }));
+/** Passe le petit rituel « C’est le moment ! » s'il est affiché. */
+function skipIntro() {
+  const intro = screen.queryByText('Touche l’écran pour commencer');
+  if (intro) fireEvent.click(intro);
+}
+
+const click = (name: RegExp | string) => {
+  skipIntro();
+  fireEvent.click(screen.getByRole('button', { name }));
+  skipIntro();
+};
 
 describe('Parcours enfant', () => {
   it('accueille un nouvel enfant et lui fait choisir un compagnon', () => {
@@ -30,6 +40,7 @@ describe('Parcours enfant', () => {
     click('Aventures');
     const card = screen.getByRole('heading', { name: 'Préparer mon sac' }).closest('li')!;
     fireEvent.click(within(card).getByRole('button', { name: 'Lancer' }));
+    skipIntro();
     expect(screen.getByRole('heading', { name: /Pose ton sac/ })).toBeInTheDocument();
     click(/C’est fait/);
     expect(screen.getByText('+10 XP')).toBeInTheDocument();
@@ -92,10 +103,29 @@ describe('Ma journée, plan et sablier', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('tab', { name: /Soir/ }));
     expect(screen.getByRole('heading', { name: 'Préparer mon sac' })).toBeInTheDocument();
-    click('Changer');
+    click(/Changer mon plan/);
     fireEvent.click(screen.getByRole('radio', { name: /Quand j’ai mis mon pyjama/ }));
     expect(useApp.getState().data.routines.find((r) => r.id === 'preparer-sac')?.trigger).toBe('Quand j’ai mis mon pyjama');
-    expect(screen.getByText(/Quand j’ai mis mon pyjama, alors je commence/)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Mon plan : Quand j’ai mis mon pyjama, alors : Préparer mon sac/ })).toBeInTheDocument();
+    expect(screen.getByText(/Ton plan : Quand j’ai mis mon pyjama/)).toBeInTheDocument();
+  });
+
+  it('rappelle le plan au lancement de la quête, puis montre la première étape', () => {
+    withProfile();
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: /Soir/ }));
+    fireEvent.click(screen.getByRole('button', { name: /C’est parti/ }));
+    expect(screen.getByText('C’est le moment !')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Touche l’écran pour commencer'));
+    expect(screen.getByRole('heading', { name: /Pose ton sac/ })).toBeInTheDocument();
+  });
+
+  it('propose de choisir un moment quand la quête n’a pas de plan', () => {
+    resetStoreForTests(setProfile(createInitialState(), 'Léa', 'lyra', 'Lyra'));
+    useApp.setState((st) => ({ data: { ...st.data, routines: st.data.routines.map((r) => ({ ...r, trigger: '' })) } }));
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: /Soir/ }));
+    expect(screen.getByRole('button', { name: /Choisis ton moment/ })).toBeInTheDocument();
   });
 
   it('active le sablier facultatif pendant une mission', () => {
@@ -178,6 +208,7 @@ describe('Ajustements', () => {
     click('Aventures');
     const card = screen.getByRole('heading', { name: 'Préparer mon sac' }).closest('li')!;
     fireEvent.click(within(card).getByRole('button', { name: 'Version courte' }));
+    skipIntro();
     expect(screen.getByText('Étape 1 sur 4')).toBeInTheDocument();
   });
 });

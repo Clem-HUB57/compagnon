@@ -1,8 +1,10 @@
-import { Backpack, Check, Compass, Gift, Home as HomeIcon, Lock, Moon, Pencil, Play, RotateCcw, Sunrise, Volume2, VolumeX, Wind } from 'lucide-react';
+import { Backpack, Check, Compass, Gift, Home as HomeIcon, Lock, Moon, Play, RotateCcw, Sunrise, Volume2, VolumeX, Wind } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Island } from '../art/Island';
 import { RoutineArt } from '../art/RoutineArt';
 import { MyCompanion, SpeakButton, SpeechBubble } from '../components/shared';
+import { PlanBridge, planSentence } from '../components/PlanBridge';
+import { speak } from '../lib/voice';
 import { Button, IconButton, Pill, Screen, Sheet, XpBar } from '../components/ui';
 import { GREETINGS, pick } from '../data/messages';
 import { useReducedMotion } from '../lib/hooks';
@@ -21,10 +23,7 @@ export function Home() {
   const lp = levelProgress(progression.totalXp);
   const greeting = useMemo(() => pick(GREETINGS), []);
   const [bubble, setBubble] = useState(true);
-  useEffect(() => {
-    const t = window.setTimeout(() => setBubble(false), 6000);
-    return () => window.clearTimeout(t);
-  }, []);
+  const [bubbleKey, setBubbleKey] = useState(0);
   const nowMoment = currentMoment(preferences.dayMoments);
   const [moment, setMoment] = useState<Exclude<Moment, 'libre'>>(nowMoment);
   const summary = momentSummary(data, moment);
@@ -37,6 +36,15 @@ export function Home() {
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
   const openElsewhere = lastOpen && lastOpen.routineId !== suggestion?.id ? getRoutine(data, lastOpen.routineId) : undefined;
   const gifts = progression.pendingChoices.length;
+  // Le compagnon rappelle le plan de la quête proposée (c'est le plus utile à dire).
+  const planText = suggestion && !open ? (suggestion.trigger.trim() ? `Ton plan : ${planSentence(suggestion)} Ça marche ?` : `On choisit ton moment pour « ${suggestion.title} » ? Touche « Quand ? ».`) : null;
+  const bubbleText = `${profile?.childName ? `Coucou ${profile.childName} ! ` : ''}${planText ?? greeting}`;
+  useEffect(() => {
+    setBubble(true);
+    const t = window.setTimeout(() => setBubble(false), planText ? 12000 : 6000);
+    if (planText && preferences.voiceEnabled && preferences.autoRead) speak(planText);
+    return () => window.clearTimeout(t);
+  }, [bubbleKey, planText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Screen>
@@ -69,11 +77,22 @@ export function Home() {
         <div className="overflow-hidden rounded-4xl shadow-carte">
           <Island stage={progression.worldStage} ambiance={progression.equipped.ambiance} decor={progression.equipped.decor} animate={!reduced} className="block w-full" />
         </div>
-        <div className="absolute -bottom-6 left-1 flex items-end sm:left-4">
+        <button
+          type="button"
+          className="absolute -bottom-6 left-1 flex items-end sm:left-4"
+          aria-label={`Écouter ${profile?.companionName ?? 'mon compagnon'}`}
+          onClick={() => {
+            setBubbleKey((k) => k + 1);
+            if (preferences.voiceEnabled) speak(bubbleText);
+          }}
+        >
           <MyCompanion size={128} breathe />
-        </div>
-        <div className={`absolute left-3 top-3 max-w-[62%] transition-opacity duration-700 ${bubble ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-          <SpeechBubble className="px-3 py-2 text-sm sm:text-base">{profile?.childName ? `Coucou ${profile.childName} ! ${greeting}` : greeting}</SpeechBubble>
+        </button>
+        <div className={`absolute left-3 top-3 max-w-[66%] transition-opacity duration-700 ${bubble ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+          <SpeechBubble className="flex items-start gap-2 px-3 py-2 text-sm sm:text-base">
+            <span className="flex-1">{bubbleText}</span>
+            <SpeakButton text={bubbleText} className="h-8 w-8" />
+          </SpeechBubble>
         </div>
       </section>
       <p className="mt-8 text-center text-sm text-encre-700">
@@ -201,22 +220,17 @@ function QuestCard({ routine, label }: { routine: Routine; label: string }) {
         </div>
       </div>
       {!open && (
-        <div className="mt-3 flex items-center gap-2 rounded-2xl bg-sable-100 py-1.5 pl-4 pr-1.5 text-sm text-encre-700">
-          <p className="flex-1">
-            {routine.trigger ? (
-              <>
-                <span className="font-semibold">Ton plan :</span> {routine.trigger}, alors je commence.
-              </>
-            ) : (
-              'Choisis quand tu commenceras : ça aide à démarrer.'
-            )}
-          </p>
-          <Button variant="fantome" size="petit" icon={<Pencil size={16} aria-hidden />} onClick={() => setPlanOpen(true)}>
-            {routine.trigger ? 'Changer' : 'Mon plan'}
-          </Button>
+        <div className="mt-4">
+          <PlanBridge routine={routine} onEdit={() => setPlanOpen(true)} />
         </div>
       )}
-      <Button size="grand" className="mt-4 w-full" icon={open ? <RotateCcw aria-hidden /> : <Play aria-hidden />} onClick={() => startMission(routine.id)}>
+      <Button
+        size={open || routine.trigger ? 'grand' : 'normal'}
+        variant={open || routine.trigger ? 'principal' : 'secondaire'}
+        className="mt-4 w-full"
+        icon={open ? <RotateCcw aria-hidden /> : <Play aria-hidden />}
+        onClick={() => startMission(routine.id)}
+      >
         {open ? 'Reprendre' : 'C’est parti !'}
       </Button>
       {!open && hasShortVersion(routine) && (
