@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ILLUSTRATIONS, RoutineArt } from '../../art/RoutineArt';
 import { Button, IconButton } from '../../components/ui';
 import { CALM_TOOLS } from '../../data/calm';
-import { MOMENT_LABELS, newStep } from '../../logic/engine';
+import { MOMENT_LABELS, newStep, proudPhotoEnabled } from '../../logic/engine';
 import { XP_MAX, XP_MIN } from '../../logic/progression';
 import type { Moment, Routine, RoutineCategory, Step } from '../../types';
 
@@ -230,6 +230,18 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
         <p className="mt-2 text-xs text-encre-500">
           Cochez « Indispensable » sur les étapes à garder les jours difficiles : l’enfant pourra alors choisir la version courte. « Montre à un adulte » crée un moment de fierté partagé, sans contrôle.
         </p>
+      </section>
+
+      <section className="rounded-3xl bg-white p-4 shadow-carte">
+        <label className="flex items-start gap-3">
+          <input type="checkbox" className="mt-1 h-4 w-4 accent-lagon-700" checked={proudPhotoEnabled(r)} onChange={(e) => setR({ ...r, proudPhoto: e.target.checked })} />
+          <span>
+            <span className="font-semibold">Proposer la photo de fierté à la fin</span>
+            <span className="mt-1 block text-sm text-encre-700">
+              Une fois la quête finie, l’enfant peut photographier ce qu’il a fait. La photo reçoit un cadre festif et rejoint son album, dans la cabane. Facultatif, sans XP. Utile pour ranger ou préparer son sac, moins pour la douche.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="rounded-3xl bg-white p-4 shadow-carte">

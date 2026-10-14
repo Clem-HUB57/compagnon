@@ -201,7 +201,7 @@ export function Mission({ sessionId }: { sessionId: string }) {
             )}
             {unit.steps.length === 1 && (
               <div className="mt-3">
-                <StepPhoto stepId={current.id} compact />
+                <StepPhoto stepId={current.id} editable={false} compact />
               </div>
             )}
           </section>

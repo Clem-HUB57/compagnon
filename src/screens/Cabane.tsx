@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { CosmeticThumb } from '../art/Accessories';
 import { Companion } from '../art/Companion';
 import { Island } from '../art/Island';
+import { Album } from '../components/Album';
 import { MyCompanion } from '../components/shared';
 import { Button, IconButton, Screen, Sheet } from '../components/ui';
 import { COMPANIONS } from '../data/companions';
@@ -17,7 +18,8 @@ import type { Cosmetic, CosmeticKind } from '../types';
 const TABS: { id: CabaneTab; label: string }[] = [
   { id: 'compagnon', label: 'Compagnon' },
   { id: 'ile', label: 'Mon île' },
-  { id: 'carnet', label: 'Carnet' }
+  { id: 'carnet', label: 'Carnet' },
+  { id: 'album', label: 'Album' }
 ];
 
 export function Cabane({ initialTab = 'compagnon' }: { initialTab?: CabaneTab }) {
@@ -140,7 +142,7 @@ export function Cabane({ initialTab = 'compagnon' }: { initialTab?: CabaneTab })
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`min-h-[44px] flex-1 rounded-2xl px-2 text-base font-semibold transition ${tab === t.id ? 'bg-white shadow-carte' : 'text-encre-700 hover:bg-sable-300/60'}`}
+            className={`min-h-[44px] flex-1 rounded-2xl px-1 text-[15px] font-semibold transition ${tab === t.id ? 'bg-white shadow-carte' : 'text-encre-700 hover:bg-sable-300/60'}`}
           >
             {t.label}
           </button>
@@ -238,6 +240,12 @@ export function Cabane({ initialTab = 'compagnon' }: { initialTab?: CabaneTab })
               })}
             </ul>
           </section>
+        </div>
+      )}
+
+      {tab === 'album' && (
+        <div className="mt-4 flex animate-apparait flex-col gap-4" role="tabpanel">
+          <Album />
         </div>
       )}
 

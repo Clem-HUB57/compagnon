@@ -1,4 +1,5 @@
 import {
+  proudPhotoEnabled,
   chooseReward,
   completeStep,
   completeSteps,
@@ -440,5 +441,16 @@ describe('Ajustements recommandés par les familles', () => {
     const later = buildReminderIcs({ title: 'X', time: '08:00', weekdaysOnly: false, now: new Date(2026, 9, 14, 10, 0), uid: 'b' });
     expect(later).toContain('DTSTART:20261015T080000');
     expect(later).toContain('RRULE:FREQ=DAILY');
+  });
+});
+
+describe('Photo de fierté', () => {
+  it('est proposée par défaut, sauf pour les soins du corps, et reste réglable', () => {
+    const s = createInitialState();
+    const sac = getRoutine(s, 'preparer-sac')!;
+    expect(proudPhotoEnabled(sac)).toBe(true);
+    expect(proudPhotoEnabled({ ...sac, category: 'soin' })).toBe(false);
+    expect(proudPhotoEnabled({ ...sac, category: 'soin', proudPhoto: true })).toBe(true);
+    expect(proudPhotoEnabled({ ...sac, proudPhoto: false })).toBe(false);
   });
 });

@@ -1,16 +1,17 @@
 import { Award, Check, Coffee, Compass, Gift, Home, Mail, TrendingDown } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Companion } from '../art/Companion';
 import { CosmeticThumb } from '../art/Accessories';
 import { Island } from '../art/Island';
 import { MyCompanion } from '../components/shared';
+import { ProudPhoto } from '../components/ProudPhoto';
 import { Sparkles } from '../components/Sparkles';
 import { Button, Screen } from '../components/ui';
 import { FINDING_REASONS, getCosmetic } from '../data/cosmetics';
 import { END_AFTER_PAUSE_MESSAGES, END_MESSAGES, pick } from '../data/messages';
 import { useReducedMotion } from '../lib/hooks';
 import { playSound } from '../lib/sound';
-import { chooseReward, getRoutine, respondToOffer, routineStats, setMood, sessionSteps } from '../logic/engine';
+import { chooseReward, getRoutine, proudPhotoEnabled, respondToOffer, routineStats, setMood, sessionSteps } from '../logic/engine';
 import { WORLD_STAGE_NAMES } from '../logic/progression';
 import { useApp } from '../store/useApp';
 import type { Mood } from '../types';
@@ -37,6 +38,7 @@ export function MissionEnd({ sessionId }: { sessionId: string }) {
   const [resting, setResting] = useState(false);
   const [offerAnswered, setOfferAnswered] = useState(false);
   const [burst] = useState(() => Date.now());
+  const companionHost = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (levelUp) window.setTimeout(() => playSound('niveau', data.preferences.soundEnabled), 400);
@@ -77,7 +79,7 @@ export function MissionEnd({ sessionId }: { sessionId: string }) {
   return (
     <Screen>
       <section className="flex flex-col items-center pt-4 text-center" aria-live="polite">
-        <div className="relative">
+        <div className="relative" ref={companionHost}>
           <MyCompanion size={150} expression="bravo" bounceKey={reduced ? undefined : burst} />
           <Sparkles burstKey={burst} />
         </div>
@@ -99,6 +101,8 @@ export function MissionEnd({ sessionId }: { sessionId: string }) {
         </ul>
         <p className="mt-3 text-sm text-encre-700">Tu as fait cette routine {stats.completions} fois en tout.</p>
       </section>
+
+      {proudPhotoEnabled(routine) && <ProudPhoto routine={routine} companionHost={companionHost} />}
 
       <section className="carte mt-4 overflow-hidden" aria-label="Ton île">
         <Island

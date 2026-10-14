@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import * as engine from '../logic/engine';
 import type { ActionEvents, AppState } from '../types';
 import { clearState, loadState, requestPersistence, saveState } from './storage';
+import { clearPhotos } from '../lib/photos';
 
-export type CabaneTab = 'compagnon' | 'ile' | 'carnet';
+export type CabaneTab = 'compagnon' | 'ile' | 'carnet' | 'album';
 
 export type Route =
   | { name: 'onboarding' }
@@ -133,6 +134,7 @@ export const useApp = create<AppStore>((set, get) => ({
   wipeAll: async () => {
     try {
       await clearState();
+      await clearPhotos();
     } catch {
       /* rien à effacer */
     }

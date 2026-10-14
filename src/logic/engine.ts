@@ -120,6 +120,11 @@ export function openSession(state: AppState, routineId: string): Session | undef
 
 /** Étapes de la routine pas encore validées dans cette session, dans l'ordre. */
 /** Vrai si la routine a des étapes marquées indispensables (version courte possible). */
+/** La photo de fierté est-elle proposée à la fin de cette routine ? */
+export function proudPhotoEnabled(routine: Routine): boolean {
+  return routine.proudPhoto ?? routine.category !== 'soin';
+}
+
 export function hasShortVersion(routine: Routine): boolean {
   const n = routine.steps.filter((s) => s.essential).length;
   return n > 0 && n < routine.steps.length;

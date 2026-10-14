@@ -64,6 +64,8 @@ export interface Routine {
   templateId?: string;
   /** Heure du rappel d'agenda (HH:MM), facultative. */
   reminderTime?: string;
+  /** Proposer la photo de fierté à la fin (par défaut : oui, sauf pour les soins du corps). */
+  proudPhoto?: boolean;
 }
 
 export type SessionStatus = 'en_cours' | 'en_pause' | 'terminee' | 'mise_de_cote';

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { playSound } from '../lib/sound';
@@ -74,7 +75,7 @@ export function Sheet({ open, onClose, title, children, labelClose = 'Fermer' }:
     };
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-encre-900/40 p-0 sm:items-center sm:p-6" onClick={onClose}>
       <div
         ref={ref}
@@ -93,7 +94,8 @@ export function Sheet({ open, onClose, title, children, labelClose = 'Fermer' }:
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
