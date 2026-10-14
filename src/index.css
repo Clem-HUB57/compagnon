@@ -1,0 +1,79 @@
+@import '@fontsource-variable/lexend';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.texte-grand {
+  font-size: 112.5%;
+}
+
+body {
+  @apply bg-sable-100 font-sans text-encre-900 antialiased;
+  min-height: 100dvh;
+}
+
+/* Focus clavier très visible */
+:focus-visible {
+  outline: 3px solid #2f6f73;
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+@layer components {
+  .carte {
+    @apply rounded-4xl bg-white shadow-carte;
+  }
+  .titre {
+    @apply text-2xl font-semibold leading-tight text-encre-900;
+  }
+  .champ {
+    @apply w-full rounded-2xl border-2 border-sable-300 bg-white px-4 py-3 text-base text-encre-900 placeholder:text-encre-500/70 focus:border-lagon-500 focus:outline-none;
+  }
+  .etiquette {
+    @apply mb-1 block text-sm font-medium text-encre-700;
+  }
+}
+
+/* Animations du monde */
+.island-pop {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: island-pop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes island-pop {
+  from { opacity: 0; transform: scale(0.2); }
+  to { opacity: 1; transform: scale(1); }
+}
+.vagues { animation: vagues 7s ease-in-out infinite; }
+@keyframes vagues { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(8px); } }
+.nuage { animation: nuage 18s ease-in-out infinite; }
+@keyframes nuage { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(14px); } }
+.flotte { animation: flotte 6s ease-in-out infinite; }
+@keyframes flotte { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.luciole { animation: luciole 4s ease-in-out infinite; }
+@keyframes luciole { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+.xp-flotte { animation: xp-flotte 1.2s ease-out forwards; }
+@keyframes xp-flotte {
+  0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+  25% { opacity: 1; transform: translateY(0) scale(1.08); }
+  100% { opacity: 0; transform: translateY(-28px) scale(1); }
+}
+
+/* Réduction des animations : réglage de l'app ou de l'appareil */
+.reduire-animations *,
+.reduire-animations *::before,
+.reduire-animations *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
