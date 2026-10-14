@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from '../src/App';
 import { createInitialState, setProfile } from '../src/logic/engine';
 import { resetStoreForTests, useApp } from '../src/store/useApp';
@@ -202,54 +202,97 @@ describe('Espace parent', () => {
     expect(screen.getByText(/pas la bonne réponse/)).toBeInTheDocument();
   });
 
+  const tab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
+
+  it('accueille le parent la première fois, puis ouvre directement les routines', () => {
+    openParent();
+    expect(screen.getByText('Bienvenue dans Compagnon')).toBeInTheDocument();
+    expect(screen.getByText('Vous accompagner, vous aussi')).toBeInTheDocument();
+    expect(screen.getByText(/0 805 382 300/)).toBeInTheDocument();
+    expect(useApp.getState().data.preferences.parentVisited).toBe(true);
+    cleanup();
+    render(<App />); // l'app est restée sur l'espace parent : la question revient
+    const q = screen.getByText(/Combien font/).textContent!;
+    const [, a, b] = q.match(/(\d+) × (\d+)/)!;
+    fireEvent.change(screen.getByLabelText(/Combien font/), { target: { value: String(Number(a) * Number(b)) } });
+    click('Entrer');
+    expect(screen.getByRole('tab', { name: 'Routines' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('propose un mode d’emploi', () => {
+    openParent();
+    tab('Mode d’emploi');
+    expect(screen.getByText('1. Installer l’app')).toBeInTheDocument();
+    expect(screen.getByText('6. Verrouiller l’appareil sur Compagnon')).toBeInTheDocument();
+  });
+
+  it('prépare les routines en démarrage express', () => {
+    openParent();
+    click('Démarrage express');
+    click('S’habiller le matin');
+    click('Préparer le sac');
+    click('Préparer mes 2 routines');
+    expect(screen.getByText('C’est prêt !')).toBeInTheDocument();
+    const routines = useApp.getState().data.routines;
+    expect(routines.map((r) => r.templateId ?? r.id).sort()).toEqual(['modele-habiller', 'preparer-sac']);
+  });
+
+  it('crée une routine en saisissant une étape par ligne', () => {
+    openParent();
+    tab('Routines');
+    click('Créer une routine');
+    fireEvent.change(screen.getByLabelText('Nom de la routine'), { target: { value: 'Ranger ma chambre' } });
+    fireEvent.change(screen.getByLabelText('Les étapes, une par ligne'), { target: { value: '- ramasse les vêtements\n- range les jouets\n\n3. fais ton lit' } });
+    click('Créer la routine');
+    const r = useApp.getState().data.routines.find((x) => x.title === 'Ranger ma chambre');
+    expect(r?.isCustom).toBe(true);
+    expect(r?.illustration).toBe('ranger');
+    expect(r?.steps.map((x) => x.title)).toEqual(['Ramasse les vêtements', 'Range les jouets', 'Fais ton lit']);
+    expect(screen.getByText(/est créée, avec 3 étapes/)).toBeInTheDocument();
+  });
+
   it('modifie le titre d’une routine', () => {
     openParent();
+    tab('Routines');
     fireEvent.click(screen.getAllByRole('button', { name: 'Modifier' })[0]);
-    fireEvent.change(screen.getByLabelText('Titre de la routine'), { target: { value: 'Mon cartable' } });
+    fireEvent.change(screen.getByLabelText('Nom de la routine'), { target: { value: 'Mon cartable' } });
     click('Enregistrer');
     expect(screen.getByText(/« Mon cartable » est enregistrée/)).toBeInTheDocument();
     expect(useApp.getState().data.routines.find((r) => r.id === 'preparer-sac')?.title).toBe('Mon cartable');
   });
 
-  it('crée une routine personnalisée', () => {
-    openParent();
-    click('Créer une routine');
-    fireEvent.change(screen.getByLabelText('Titre de la routine'), { target: { value: 'Brosser mes dents' } });
-    fireEvent.change(screen.getByLabelText('Étape 1'), { target: { value: 'Prends ta brosse' } });
-    click('Ajouter une étape');
-    fireEvent.change(screen.getByLabelText('Étape 2'), { target: { value: 'Brosse 2 minutes' } });
-    click('Enregistrer');
-    const r = useApp.getState().data.routines.find((x) => x.title === 'Brosser mes dents');
-    expect(r?.isCustom).toBe(true);
-    expect(r?.steps).toHaveLength(2);
-  });
-
   it('ajoute une routine depuis la bibliothèque', () => {
     openParent();
-    click('Ajouter depuis la bibliothèque');
+    tab('Routines');
+    click('Bibliothèque');
     click('Ajouter « Me brosser les dents »');
     const r = useApp.getState().data.routines.find((x) => x.templateId === 'modele-dents-matin');
     expect(r?.moment).toBe('matin');
     expect(screen.getAllByText('Ajoutée').length).toBeGreaterThan(0);
   });
 
-  it('propose un accompagnement et des pistes pour les parents', () => {
+  it('ajoute l’étape « Montre à un adulte », colle une liste et marque une étape indispensable', () => {
     openParent();
-    fireEvent.click(screen.getByRole('tab', { name: 'Accompagnement' }));
-    expect(screen.getByText('Cette semaine')).toBeInTheDocument();
-    expect(screen.getByText('Des pistes à explorer')).toBeInTheDocument();
-    expect(screen.getByText(/0 805 382 300/)).toBeInTheDocument();
-  });
-
-  it('ajoute l’étape « Montre à un adulte » et marque une étape indispensable', () => {
-    openParent();
+    tab('Routines');
     fireEvent.click(screen.getAllByRole('button', { name: 'Modifier' })[0]);
+    click('Coller une liste');
+    fireEvent.change(screen.getByLabelText('Ajouter plusieurs étapes, une par ligne'), { target: { value: 'Vérifie ta gourde\nPrends ton goûter' } });
+    click('Ajouter 2 étapes');
     click('Finir par « Montre à un adulte »');
     fireEvent.click(screen.getAllByRole('checkbox', { name: 'Indispensable' })[0]);
     click('Enregistrer');
     const r = useApp.getState().data.routines[0];
-    expect(r.steps[r.steps.length - 1]?.title).toBe('Montre à un adulte ce que tu as fait');
+    const titles = [...r.steps].sort((x, y) => x.order - y.order).map((x) => x.title);
+    expect(titles.slice(-3)).toEqual(['Vérifie ta gourde', 'Prends ton goûter', 'Montre à un adulte ce que tu as fait']);
     expect(r.steps[0].essential).toBe(true);
+  });
+
+  it('active la police adaptée à la dyslexie', () => {
+    openParent();
+    tab('Réglages');
+    fireEvent.click(screen.getByLabelText(/Police adaptée à la dyslexie/));
+    expect(useApp.getState().data.preferences.font).toBe('dys');
+    expect(document.documentElement).toHaveClass('police-dys');
   });
 
   it('affiche les outils de données (export et suppression)', () => {

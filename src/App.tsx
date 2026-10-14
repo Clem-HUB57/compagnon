@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { MyCompanion } from './components/shared';
 import { useReducedMotion } from './lib/hooks';
+import { setVoiceSettings } from './lib/voice';
+import { loadDysFont } from './lib/fonts';
 import { Adventures } from './screens/Adventures';
 import { Cabane } from './screens/Cabane';
 import { Calm } from './screens/Calm';
@@ -17,12 +19,19 @@ export function App() {
   const profile = useApp((s) => s.data.profile);
   const storageOk = useApp((s) => s.storageOk);
   const textSize = useApp((s) => s.data.preferences.displayPreferences.textSize);
+  const font = useApp((s) => s.data.preferences.font);
+  const voiceName = useApp((s) => s.data.preferences.voiceName);
+  const voiceRate = useApp((s) => s.data.preferences.voiceRate);
   const reduced = useReducedMotion();
 
   useEffect(() => {
     document.documentElement.classList.toggle('texte-grand', textSize === 'grand');
+    if (font === 'dys') loadDysFont();
+    document.documentElement.classList.toggle('police-dys', font === 'dys');
     document.documentElement.classList.toggle('reduire-animations', reduced);
-  }, [textSize, reduced]);
+  }, [textSize, font, reduced]);
+
+  useEffect(() => setVoiceSettings({ name: voiceName, rate: voiceRate }), [voiceName, voiceRate]);
 
   // Bouton « retour » du téléphone : on revient à l'écran précédent de l'app.
   useEffect(() => {

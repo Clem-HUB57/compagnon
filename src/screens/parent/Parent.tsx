@@ -1,25 +1,29 @@
-import { ArrowLeft, BookOpen, Check, ChevronDown, Download, ExternalLink, FileUp, Heart, Info, Lock, Pencil, Plus, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
-import { SUPPORT_CHECKED_ON, SUPPORT_SECTIONS, weeklyTip } from '../../data/support';
-import { useMemo, useRef, useState } from 'react';
+import { ArrowLeft, BookOpen, Check, Download, FileUp, Pencil, Play, Plus, RotateCcw, Sparkles as SparklesIcon, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { frenchVoices, onVoicesChanged, speak, voiceAvailable } from '../../lib/voice';
 import { RoutineArt } from '../../art/RoutineArt';
 import { Button, IconButton, Pill, Sheet } from '../../components/ui';
 import { getTool } from '../../data/calm';
 import { LIBRARY, LIBRARY_GROUPS } from '../../data/library';
-import { addFromLibrary, deleteRoutine, MOMENT_LABELS, exportData, newCustomRoutine, parseImport, resetDemo, routineStats, setAidLevel, upsertRoutine } from '../../logic/engine';
+import { addFromLibrary, deleteRoutine, MOMENT_LABELS, exportData, parseImport, resetDemo, routineStats, setAidLevel, upsertRoutine } from '../../logic/engine';
 import { useApp } from '../../store/useApp';
 import type { AidLevel, AppState, Routine, Session } from '../../types';
 import { AID_LABELS } from '../Adventures';
 import { RoutineEditor } from './RoutineEditor';
+import { ExpressSetup } from './ExpressSetup';
+import { GuideTab } from './Guide';
+import { QuickCreate } from './QuickCreate';
+import { WelcomeTab } from './Welcome';
 
-type Tab = 'routines' | 'accompagnement' | 'historique' | 'reglages' | 'donnees' | 'aide';
+type Tab = 'bienvenue' | 'guide' | 'routines' | 'historique' | 'reglages' | 'donnees';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'bienvenue', label: 'Bienvenue' },
+  { id: 'guide', label: 'Mode d’emploi' },
   { id: 'routines', label: 'Routines' },
-  { id: 'accompagnement', label: 'Accompagnement' },
   { id: 'historique', label: 'Historique' },
   { id: 'reglages', label: 'Réglages' },
-  { id: 'donnees', label: 'Données' },
-  { id: 'aide', label: 'Installer & infos' }
+  { id: 'donnees', label: 'Données' }
 ];
 
 /** Confirmation parentale simple. Ce n'est PAS une protection sécurisée. */
@@ -72,8 +76,20 @@ function ParentGate({ onOk }: { onOk: () => void }) {
 export function Parent() {
   const [unlocked, setUnlocked] = useState(false);
   const navigate = useApp((s) => s.navigate);
-  const [tab, setTab] = useState<Tab>('routines');
-  if (!unlocked) return <ParentGate onOk={() => setUnlocked(true)} />;
+  const visited = useApp((s) => !!s.data.preferences.parentVisited);
+  const update = useApp((s) => s.update);
+  // La première fois : la page de bienvenue. Ensuite : directement les routines.
+  const [tab, setTab] = useState<Tab>(visited ? 'routines' : 'bienvenue');
+  const [expressOpen, setExpressOpen] = useState(false);
+  if (!unlocked)
+    return (
+      <ParentGate
+        onOk={() => {
+          setUnlocked(true);
+          if (!visited) update((s) => ({ ...s, preferences: { ...s.preferences, parentVisited: true } }));
+        }}
+      />
+    );
   return (
     <main className="mx-auto min-h-[100dvh] w-full max-w-3xl px-4 pb-10 pt-3 sm:px-6">
       <header className="flex items-center gap-2">
@@ -97,25 +113,35 @@ export function Parent() {
         ))}
       </nav>
       <div className="mt-5" role="tabpanel">
-        {tab === 'routines' && <RoutinesTab />}
-        {tab === 'accompagnement' && <SupportTab />}
+        {tab === 'bienvenue' && (
+          <WelcomeTab
+            onExpress={() => {
+              setTab('routines');
+              setExpressOpen(true);
+            }}
+            onGuide={() => setTab('guide')}
+          />
+        )}
+        {tab === 'guide' && <GuideTab />}
+        {tab === 'routines' && <RoutinesTab onExpress={() => setExpressOpen(true)} />}
         {tab === 'historique' && <HistoryTab />}
         {tab === 'reglages' && <SettingsTab />}
         {tab === 'donnees' && <DataTab />}
-        {tab === 'aide' && <HelpTab />}
       </div>
+      <ExpressSetup open={expressOpen} onClose={() => setExpressOpen(false)} />
     </main>
   );
 }
 
 // ------------------------------------------------------------------ Routines
 
-function RoutinesTab() {
+function RoutinesTab({ onExpress }: { onExpress: () => void }) {
   const data = useApp((s) => s.data);
   const update = useApp((s) => s.update);
   const [editing, setEditing] = useState<{ routine: Routine; isNew: boolean } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const added = new Set(data.routines.map((r) => r.templateId).filter(Boolean));
 
   if (editing) {
@@ -151,14 +177,29 @@ function RoutinesTab() {
           {saved}
         </p>
       )}
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Button icon={<BookOpen aria-hidden />} onClick={() => setLibraryOpen(true)}>
-          Ajouter depuis la bibliothèque
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Button icon={<SparklesIcon aria-hidden />} onClick={onExpress}>
+          Démarrage express
         </Button>
-        <Button variant="secondaire" icon={<Plus aria-hidden />} onClick={() => setEditing({ routine: newCustomRoutine(), isNew: true })}>
+        <Button variant="secondaire" icon={<Plus aria-hidden />} onClick={() => setQuickOpen(true)}>
           Créer une routine
         </Button>
+        <Button variant="secondaire" icon={<BookOpen aria-hidden />} onClick={() => setLibraryOpen(true)}>
+          Bibliothèque
+        </Button>
       </div>
+      <QuickCreate
+        open={quickOpen}
+        onClose={() => setQuickOpen(false)}
+        onCreate={(r, refine) => {
+          setQuickOpen(false);
+          if (refine) setEditing({ routine: r, isNew: true });
+          else {
+            update((s) => upsertRoutine(s, r));
+            setSaved(`« ${r.title} » est créée, avec ${r.steps.length} étape${r.steps.length > 1 ? 's' : ''}.`);
+          }
+        }}
+      />
       <Sheet open={libraryOpen} onClose={() => setLibraryOpen(false)} title="Bibliothèque de routines">
         <p className="mb-4 text-sm text-encre-700">Des modèles prêts à l’emploi. Une fois ajoutés, vous pouvez tout modifier : étapes, aides, moment, déclencheur.</p>
         {LIBRARY_GROUPS.map((g) => (
@@ -246,57 +287,6 @@ function RoutinesTab() {
   );
 }
 
-// ------------------------------------------------------------------ Accompagnement
-
-function SupportTab() {
-  const tip = weeklyTip();
-  return (
-    <div className="flex flex-col gap-4">
-      <section className="carte bg-lagon-100 p-5">
-        <p className="flex items-center gap-2 text-sm font-medium text-lagon-900">
-          <Heart size={16} aria-hidden /> Cette semaine
-        </p>
-        <p className="mt-2 text-lg font-semibold">{tip.tip}</p>
-        {tip.say && <p className="mt-1 text-encre-700">À essayer : {tip.say}</p>}
-      </section>
-      <section className="carte p-5">
-        <h2 className="font-semibold">Les jours sans</h2>
-        <p className="mt-1 text-sm text-encre-700">
-          Il y aura des jours où rien ne démarre. C’est normal, pour l’enfant comme pour vous. L’app ne perd rien et ne fait aucun reproche : reprenez simplement au moment habituel. Les petites routines gagnent sur la durée, pas en une semaine.
-        </p>
-      </section>
-      <div>
-        <h2 className="text-xl font-semibold">Des pistes à explorer</h2>
-        <p className="mt-1 text-sm text-encre-700">
-          Compagnon aide au quotidien, mais ne remplace ni un bilan, ni un accompagnement. Voici des pistes, en France, pour aller plus loin. Informations générales vérifiées le {SUPPORT_CHECKED_ON} : demandez toujours conseil à un professionnel.
-        </p>
-      </div>
-      {SUPPORT_SECTIONS.map((sec) => (
-        <details key={sec.id} className="carte group p-5" open={sec.id === 'sante'}>
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
-            {sec.title}
-            <ChevronDown size={18} className="shrink-0 transition group-open:rotate-180" aria-hidden />
-          </summary>
-          <p className="mt-2 text-sm text-encre-700">{sec.intro}</p>
-          <ul className="mt-3 flex flex-col gap-3">
-            {sec.items.map((it) => (
-              <li key={it.title} className="rounded-2xl bg-sable-100 p-4">
-                <p className="font-medium">{it.title}</p>
-                <p className="mt-1 text-sm text-encre-700">{it.text}</p>
-                {it.link && (
-                  <a href={it.link.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-lagon-900 underline underline-offset-2">
-                    {it.link.label} <ExternalLink size={14} aria-hidden />
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ))}
-    </div>
-  );
-}
-
 // ------------------------------------------------------------------ Historique
 
 const STATUS_LABEL: Record<Session['status'], string> = {
@@ -379,6 +369,70 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint?: stri
   );
 }
 
+const VOICE_SAMPLE = 'Coucou ! On y va ? Pose ton sac à l’endroit habituel. Bravo, tu as réussi !';
+
+function VoiceSettings({ voiceName, rate, onChange }: { voiceName?: string; rate: number; onChange: (patch: Partial<AppState['preferences']>) => void }) {
+  const [voices, setVoices] = useState(() => frenchVoices());
+  useEffect(() => {
+    const refresh = () => setVoices(frenchVoices());
+    refresh();
+    return onVoicesChanged(refresh);
+  }, []);
+  if (!voiceAvailable()) return null;
+  return (
+    <div className="rounded-2xl bg-white px-4 py-3 shadow-carte">
+      <p className="font-medium">Voix</p>
+      {voices.length === 0 ? (
+        <p className="mt-1 text-sm text-encre-500">Aucune voix française n’est installée sur cet appareil (voir ci-dessous).</p>
+      ) : (
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div>
+            <label htmlFor="voix" className="sr-only">
+              Voix
+            </label>
+            <select id="voix" className="champ" value={voiceName ?? ''} onChange={(e) => onChange({ voiceName: e.target.value || undefined })}>
+              <option value="">Automatique (la plus naturelle : {voices[0].name})</option>
+              {voices.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="vitesse" className="sr-only">
+              Vitesse
+            </label>
+            <select id="vitesse" className="champ" value={rate} onChange={(e) => onChange({ voiceRate: Number(e.target.value) })}>
+              <option value={0.85}>Plus lente</option>
+              <option value={1}>Vitesse normale</option>
+              <option value={1.1}>Plus rapide</option>
+            </select>
+          </div>
+        </div>
+      )}
+      <Button variant="secondaire" size="petit" className="mt-2" icon={<Play size={16} aria-hidden />} onClick={() => speak(VOICE_SAMPLE, { voiceName, rate })}>
+        Écouter un exemple
+      </Button>
+      <details className="mt-3 text-sm text-encre-700">
+        <summary className="cursor-pointer font-medium text-lagon-900">Avoir une voix plus naturelle</summary>
+        <p className="mt-2">La voix vient du téléphone. Les voix « Premium » ou « Améliorée » sont bien plus chaleureuses, et gratuites :</p>
+        <ul className="ml-5 mt-1 list-disc">
+          <li>
+            <strong>iPhone / iPad</strong> : Réglages, Accessibilité, Contenu énoncé, Voix, Français (France). Téléchargez par exemple « Audrey (Premium) » ou « Amélie (Améliorée) », puis revenez ici.
+          </li>
+          <li>
+            <strong>Android</strong> : Paramètres, Synthèse vocale (ou Accessibilité, Sortie de la synthèse vocale). Choisissez le moteur Google, installez les données vocales françaises et essayez les différentes voix.
+          </li>
+        </ul>
+        <p className="mt-2">
+          Encore plus proche : <strong>enregistrez votre propre voix</strong> pour chaque étape (Routines, Modifier, « Aides, voix, photo »). Les enfants réagissent souvent mieux à une voix familière.
+        </p>
+      </details>
+    </div>
+  );
+}
+
 function SettingsTab() {
   const prefs = useApp((s) => s.data.preferences);
   const profile = useApp((s) => s.data.profile);
@@ -389,10 +443,17 @@ function SettingsTab() {
       <Toggle label="Sons" hint="Petits sons doux lors des réussites." checked={prefs.soundEnabled} onChange={(v) => set({ soundEnabled: v })} />
       <Toggle label="Lecture à voix haute" hint="Affiche un bouton haut-parleur à côté des consignes." checked={prefs.voiceEnabled} onChange={(v) => set({ voiceEnabled: v })} />
       <Toggle label="Lire chaque étape automatiquement" checked={prefs.autoRead} onChange={(v) => set({ autoRead: v })} />
+      {prefs.voiceEnabled && <VoiceSettings voiceName={prefs.voiceName} rate={prefs.voiceRate ?? 1} onChange={(patch) => set(patch)} />}
       <Toggle
         label="Texte plus grand"
         checked={prefs.displayPreferences.textSize === 'grand'}
         onChange={(v) => set({ displayPreferences: { ...prefs.displayPreferences, textSize: v ? 'grand' : 'normal' } })}
+      />
+      <Toggle
+        label="Police adaptée à la dyslexie"
+        hint="OpenDyslexic, avec plus d’espace entre les lettres, les mots et les lignes. Certains enfants la trouvent plus confortable, d’autres préfèrent la police habituelle : essayez avec le vôtre."
+        checked={prefs.font === 'dys'}
+        onChange={(v) => set({ font: v ? 'dys' : 'lexend' })}
       />
       <fieldset className="rounded-2xl bg-white px-4 py-3 shadow-carte">
         <legend className="sr-only">Ma journée</legend>
@@ -577,62 +638,6 @@ function DataTab() {
             Supprimer toutes les données
           </Button>
         )}
-      </section>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------ Aide
-
-function HelpTab() {
-  return (
-    <div className="flex flex-col gap-4">
-      <section className="carte p-5">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <Smartphone aria-hidden /> Installer l’application
-        </h2>
-        <h3 className="mt-3 font-medium">iPhone et iPad (Safari)</h3>
-        <ol className="ml-5 mt-1 list-decimal text-sm text-encre-700">
-          <li>Ouvrez l’application dans Safari.</li>
-          <li>Touchez le bouton Partager (carré avec une flèche).</li>
-          <li>Choisissez « Sur l’écran d’accueil ».</li>
-        </ol>
-        <p className="mt-1 text-sm text-encre-700">Une fois installée, l’application garde ses données plus durablement.</p>
-        <h3 className="mt-3 font-medium">Android (Chrome)</h3>
-        <ol className="ml-5 mt-1 list-decimal text-sm text-encre-700">
-          <li>Ouvrez l’application dans Chrome.</li>
-          <li>Touchez le menu ⋮ en haut à droite.</li>
-          <li>Choisissez « Installer l’application » ou « Ajouter à l’écran d’accueil ».</li>
-        </ol>
-      </section>
-      <section className="carte p-5">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <Lock aria-hidden /> Verrouiller l’appareil sur Compagnon
-        </h2>
-        <p className="mt-1 text-sm text-encre-700">Pendant une routine, l’appareil ne sert qu’à ça : pas de jeux ni de vidéos à portée de doigt. C’est gratuit et intégré au téléphone.</p>
-        <h3 className="mt-3 font-medium">iPhone et iPad : l’Accès guidé</h3>
-        <ol className="ml-5 mt-1 list-decimal text-sm text-encre-700">
-          <li>Réglages, puis Accessibilité, puis Accès guidé : activez-le et choisissez un code.</li>
-          <li>Ouvrez Compagnon, puis appuyez trois fois sur le bouton latéral (ou le bouton principal) et touchez « Démarrer ».</li>
-          <li>Pour sortir : trois appuis sur le bouton, puis le code.</li>
-        </ol>
-        <h3 className="mt-3 font-medium">Android : l’épinglage d’écran</h3>
-        <ol className="ml-5 mt-1 list-decimal text-sm text-encre-700">
-          <li>Paramètres, puis Sécurité (ou Sécurité et confidentialité), puis Épinglage d’application : activez-le.</li>
-          <li>Ouvrez Compagnon, affichez les applis récentes, touchez l’icône de l’app puis « Épingler ».</li>
-          <li>Les intitulés exacts varient selon la marque du téléphone.</li>
-        </ol>
-      </section>
-      <section className="carte p-5">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <Info aria-hidden /> À propos de ce prototype
-        </h2>
-        <ul className="ml-5 mt-2 list-disc text-sm text-encre-700">
-          <li>Compagnon est un outil pour faciliter le quotidien. Ce n’est pas un dispositif médical : il ne diagnostique, ne traite et ne guérit aucun trouble.</li>
-          <li>Il s’inspire de pratiques documentées (découpage des tâches, renforcement immédiat, plans « si… alors… », retrait progressif de l’aide), sans garantie d’efficacité.</li>
-          <li>Pas de série quotidienne, pas de classement, pas de pénalité : rien n’est jamais perdu.</li>
-          <li>Conseil : encouragez l’effort et la stratégie (« tu as trouvé comment commencer ») plutôt que la vitesse.</li>
-        </ul>
       </section>
     </div>
   );

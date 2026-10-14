@@ -104,3 +104,12 @@ export function playSound(name: SoundName, enabled: boolean) {
     /* le son est un bonus : jamais bloquant */
   }
 }
+
+/** Petite vibration de validation (Android ; l'iPhone ne la permet pas depuis le web). */
+export function haptic(ms = 25) {
+  try {
+    navigator.vibrate?.(ms);
+  } catch {
+    /* ignoré */
+  }
+}

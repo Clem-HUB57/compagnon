@@ -184,6 +184,14 @@ export interface Preferences {
   reducedMotion: 'systeme' | 'oui' | 'non';
   voiceEnabled: boolean;
   autoRead: boolean;
+  /** Voix de synthèse choisie par le parent (sinon la plus naturelle disponible). */
+  voiceName?: string;
+  /** Vitesse de lecture (1 = normale). */
+  voiceRate?: number;
+  /** Police : Lexend (par défaut) ou OpenDyslexic. */
+  font?: 'lexend' | 'dys';
+  /** L'espace parent a déjà été ouvert (on n'y affiche plus d'abord la bienvenue). */
+  parentVisited?: boolean;
   displayPreferences: DisplayPreferences;
   dayMoments: DayMoments;
 }

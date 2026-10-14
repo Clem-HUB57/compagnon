@@ -1,3 +1,5 @@
+import { expressSetup, guessIllustration, parseStepLines, quickRoutine } from '../src/logic/setup';
+import { prepareText, voiceScore } from '../src/lib/voice';
 import {
   proudPhotoEnabled,
   chooseReward,
@@ -452,5 +454,43 @@ describe('Photo de fierté', () => {
     expect(proudPhotoEnabled({ ...sac, category: 'soin' })).toBe(false);
     expect(proudPhotoEnabled({ ...sac, category: 'soin', proudPhoto: true })).toBe(true);
     expect(proudPhotoEnabled({ ...sac, proudPhoto: false })).toBe(false);
+  });
+});
+
+describe('Préparation rapide des routines', () => {
+  it('lit une étape par ligne en ignorant puces, numéros et lignes vides', () => {
+    expect(parseStepLines('• pose ton sac\n\n2) sors ton cahier\n  - ouvre-le  ')).toEqual(['Pose ton sac', 'Sors ton cahier', 'Ouvre-le']);
+  });
+
+  it('devine une illustration d’après le titre', () => {
+    expect(guessIllustration('Préparer mon cartable')).toBe('sac');
+    expect(guessIllustration('Nourrir le chat')).toBe('animal');
+    expect(guessIllustration('Truc inconnu')).toBe('etoile');
+  });
+
+  it('démarrage express : garde ou retire les autres exemples, jamais les routines du parent', () => {
+    const base = upsertRoutine(createInitialState(), quickRoutine({ title: 'Ma routine à moi', moment: 'soir', lines: ['A'] }));
+    const strict = expressSetup(base, ['sac', 'coucher'], false);
+    expect(strict.routines.map((r) => r.templateId ?? (r.isCustom ? 'perso' : r.id)).sort()).toEqual(['modele-coucher', 'perso', 'preparer-sac']);
+    expect(strict.routines.some((r) => r.title === 'Ma routine à moi')).toBe(true);
+    const kept = expressSetup(base, ['coucher'], true);
+    expect(kept.routines.length).toBe(base.routines.length + 1);
+    // Une routine d'exemple supprimée peut revenir
+    const again = expressSetup(strict, ['vaisselle'], true);
+    expect(again.routines.some((r) => r.id === 'vider-lave-vaisselle')).toBe(true);
+  });
+});
+
+describe('Choix de la voix', () => {
+  it('préfère les voix françaises naturelles aux voix fantaisie', () => {
+    const v = (name: string, lang = 'fr-FR') => ({ name, lang, localService: true });
+    expect(voiceScore(v('Audrey (Premium)'))).toBeGreaterThan(voiceScore(v('Thomas')));
+    expect(voiceScore(v('Google français'))).toBeGreaterThan(voiceScore(v('Thomas')));
+    expect(voiceScore(v('Grandma (French (France))'))).toBeLessThan(0);
+    expect(voiceScore(v('Samantha', 'en-US'))).toBeLessThan(-40);
+  });
+
+  it('prépare le texte pour une lecture plus naturelle', () => {
+    expect(prepareText('Étape : « Mets ta trousse »…')).toBe('Étape, Mets ta trousse...');
   });
 });

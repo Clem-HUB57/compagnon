@@ -4,6 +4,7 @@ import { Companion } from '../art/Companion';
 import { CosmeticThumb } from '../art/Accessories';
 import { Island } from '../art/Island';
 import { MyCompanion } from '../components/shared';
+import { LevelGain } from '../components/LevelGain';
 import { ProudPhoto } from '../components/ProudPhoto';
 import { Sparkles } from '../components/Sparkles';
 import { Button, Screen } from '../components/ui';
@@ -87,24 +88,7 @@ export function MissionEnd({ sessionId }: { sessionId: string }) {
         <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-mousse-100 px-4 py-1.5 font-semibold text-mousse-700">+{session.xpEarned} XP gagnés</p>
       </section>
 
-      <section className="carte mt-5 p-5" aria-label="Étapes réalisées">
-        <h2 className="text-sm font-medium text-encre-700">{routine.title}</h2>
-        <ul className="mt-2 flex flex-col gap-1.5">
-          {doneSteps.map((st) => (
-            <li key={st.id} className="flex items-center gap-2 text-base">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-mousse-500 text-white">
-                <Check size={14} aria-hidden />
-              </span>
-              {st.title}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-sm text-encre-700">Tu as fait cette routine {stats.completions} fois en tout.</p>
-      </section>
-
-      {proudPhotoEnabled(routine) && <ProudPhoto routine={routine} companionHost={companionHost} />}
-
-      <section className="carte mt-4 overflow-hidden" aria-label="Ton île">
+      <section className="carte mt-5 overflow-hidden" aria-label="Ton île">
         <Island
           stage={p.worldStage}
           ambiance={p.equipped.ambiance}
@@ -114,13 +98,11 @@ export function MissionEnd({ sessionId }: { sessionId: string }) {
           className="block w-full"
         />
         <div className="p-4 text-center">
-          {levelUp ? (
-            <>
-              <p className="text-xl font-semibold text-lagon-900">Niveau {p.level} !</p>
-              {stageUp && <p className="text-encre-700">Ton île change : {WORLD_STAGE_NAMES[p.worldStage].toLowerCase()}.</p>}
-            </>
+          <LevelGain before={Math.max(0, p.totalXp - session.xpEarned)} after={p.totalXp} reduced={reduced} />
+          {stageUp ? (
+            <p className="mt-2 text-encre-700">Ton île change : {WORLD_STAGE_NAMES[p.worldStage].toLowerCase()}.</p>
           ) : (
-            <p className="text-encre-700">Ton île grandit avec chaque quête.</p>
+            !levelUp && <p className="mt-2 text-sm text-encre-700">Ton île grandit avec chaque quête.</p>
           )}
         </div>
       </section>
@@ -196,6 +178,24 @@ export function MissionEnd({ sessionId }: { sessionId: string }) {
           <p className="mt-2 text-center text-xs text-encre-500">Tu peux aussi choisir plus tard, dans ta cabane.</p>
         </section>
       )}
+
+      {proudPhotoEnabled(routine) && <ProudPhoto routine={routine} companionHost={companionHost} />}
+
+      <section className="carte mt-4 p-5" aria-label="Étapes réalisées">
+        <h2 className="text-sm font-medium text-encre-700">{routine.title}</h2>
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {doneSteps.map((st) => (
+            <li key={st.id} className="flex items-center gap-2 text-base">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-mousse-500 text-white">
+                <Check size={14} aria-hidden />
+              </span>
+              {st.title}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm text-encre-700">Tu as fait cette routine {stats.completions} fois en tout.</p>
+      </section>
+
 
       {offer && offer !== 'guide' && (
         <section className="carte mt-4 p-5">

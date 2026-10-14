@@ -1,4 +1,4 @@
-import { ArrowRight, Check, Circle, Coffee, HandHelping, Hourglass as HourglassIcon, Lightbulb, ListChecks, Redo2, Sparkle, Wand2, Wind, X } from 'lucide-react';
+import { ArrowRight, Check, Circle, Coffee, HandHelping, Hourglass as HourglassIcon, Lightbulb, ListChecks, Redo2, Sparkle, Star, Wand2, Wind, X } from 'lucide-react';
 import { StepPhoto } from '../components/StepPhoto';
 import { CalmPlanEditor, CalmToolRunner } from './Calm';
 import { Hourglass } from '../components/Hourglass';
@@ -6,12 +6,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { RoutineArt } from '../art/RoutineArt';
 import { MyCompanion, SpeakButton, SpeechBubble } from '../components/shared';
 import { Sparkles } from '../components/Sparkles';
-import { Button, IconButton, Screen, Sheet, XpBar } from '../components/ui';
+import { Button, IconButton, Screen, Sheet } from '../components/ui';
 import { PAUSE_MESSAGES, pick, STEP_AFTER_HELP_MESSAGES, STEP_MESSAGES } from '../data/messages';
-import { playSound } from '../lib/sound';
-import { speak, stopSpeaking } from '../lib/voice';
+import { haptic, playSound } from '../lib/sound';
+import { playAudio, speak, stopSpeaking } from '../lib/voice';
+import { useRecording } from '../lib/recordings';
 import { condensedBlocks, getRoutine, pauseSession, recordHelp, remainingSteps, resumeSession, sessionSteps, setAidLevel, skipStep, validStepCount } from '../logic/engine';
-import { levelProgress } from '../logic/progression';
 import { useApp } from '../store/useApp';
 import type { Step } from '../types';
 import { AID_LABELS } from './Adventures';
@@ -70,15 +70,26 @@ export function Mission({ sessionId }: { sessionId: string }) {
   }, [routine, session]);
 
   const current: Step | undefined = unit?.steps[0];
+  const recording = useRecording(unit && unit.steps.length === 1 ? current?.id : undefined);
 
   // Lecture automatique (si activée) et focus sur le titre à chaque nouvelle étape
   useEffect(() => {
     if (view !== 'etape' || !unit) return;
     headingRef.current?.focus();
-    if (data.preferences.voiceEnabled && data.preferences.autoRead) speak(unit.title);
-  }, [unit?.title, view]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (data.preferences.voiceEnabled && data.preferences.autoRead) {
+      if (recording) playAudio(recording);
+      else speak(unit.title);
+    }
+  }, [unit?.title, view, recording]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => stopSpeaking(), []);
+
+  // Après une petite fête, on passe tout seul à l'étape suivante.
+  useEffect(() => {
+    if (view !== 'recompense' || !reward || reward.message === 'Mission accomplie !') return;
+    const t = window.setTimeout(() => setView('etape'), 1800);
+    return () => window.clearTimeout(t);
+  }, [view, reward]);
 
   if (!session || !routine) {
     return (
@@ -95,7 +106,6 @@ export function Mission({ sessionId }: { sessionId: string }) {
   const scope = sessionSteps(routine, session);
   const totalSteps = scope.length;
   const doneCount = validStepCount(routine, session);
-  const lp = levelProgress(data.progression.totalXp);
 
   const leave = () => {
     if (session.status === 'en_cours' && doneCount < totalSteps) update((s) => pauseSession(s, sessionId));
@@ -107,6 +117,7 @@ export function Mission({ sessionId }: { sessionId: string }) {
     setBusy(true);
     const events = completeStepsAction(sessionId, unit.steps.map((x) => x.id));
     stopSpeaking();
+    haptic();
     if (events.sessionCompleted) {
       playSound('fin', sound);
       setReward({ xp: events.xpGained, message: 'Mission accomplie !', key: Date.now() });
@@ -158,6 +169,13 @@ export function Mission({ sessionId }: { sessionId: string }) {
             })}
           </ol>
         </div>
+        <span
+          key={session.xpEarned}
+          className={`flex h-9 shrink-0 items-center gap-1 rounded-full bg-mousse-100 px-2.5 text-sm font-bold text-mousse-700 ${session.xpEarned > 0 ? 'animate-rebond' : ''}`}
+          aria-label={`${session.xpEarned} XP gagnés pendant cette quête`}
+        >
+          <Star size={16} className="fill-current" aria-hidden /> {session.xpEarned}
+        </span>
         <IconButton
           label="Sablier"
           aria-pressed={timer.showTimer}
@@ -180,7 +198,10 @@ export function Mission({ sessionId }: { sessionId: string }) {
               <h1 ref={headingRef} tabIndex={-1} className="flex-1 text-2xl font-semibold leading-snug outline-none sm:text-3xl">
                 {unit.title}
               </h1>
-              <SpeakButton text={[unit.title, ...(unit.steps.length === 1 ? [current.description] : unit.steps.map((x) => x.title))].join('. ')} />
+              <SpeakButton
+                stepId={unit.steps.length === 1 ? current.id : undefined}
+                text={[unit.title, ...(unit.steps.length === 1 ? [current.description] : unit.steps.map((x) => x.title))].filter(Boolean).join('. ')}
+              />
             </div>
             {unit.steps.length === 1 && current.description && <p className="mt-3 text-lg text-encre-700">{current.description}</p>}
             {unit.steps.length > 1 && (
@@ -217,12 +238,13 @@ export function Mission({ sessionId }: { sessionId: string }) {
               C’est fait !
             </Button>
             <div className="flex gap-2">
-              <Button variant="secondaire" className="flex-1" onClick={() => setHelpOpen(true)} icon={<HandHelping aria-hidden />}>
+              <Button variant="secondaire" className="flex-1 whitespace-nowrap px-3" onClick={() => setHelpOpen(true)} icon={<HandHelping aria-hidden />}>
                 J’ai besoin d’aide
               </Button>
               {'canSkip' in unit && unit.canSkip && (
                 <Button
                   variant="fantome"
+                  className="whitespace-nowrap px-3"
                   icon={<Redo2 aria-hidden />}
                   onClick={() => {
                     update((s) => skipStep(s, sessionId, current.id));
@@ -239,7 +261,12 @@ export function Mission({ sessionId }: { sessionId: string }) {
 
       {/* ------------------------------------------------ Récompense immédiate */}
       {view === 'recompense' && reward && (
-        <div className="flex flex-1 animate-apparait flex-col items-center justify-center text-center" role="status" aria-live="assertive">
+        <div
+          className="flex flex-1 animate-apparait flex-col items-center justify-center text-center"
+          role="status"
+          aria-live="assertive"
+          onClick={() => doneCount < totalSteps && setView('etape')}
+        >
           <div className="relative">
             <MyCompanion size={180} expression={companionExpression} bounceKey={reward.key} />
             <Sparkles burstKey={reward.key} />
@@ -251,17 +278,8 @@ export function Mission({ sessionId }: { sessionId: string }) {
           <p className="mt-1 text-encre-700">
             {doneCount} étape{doneCount > 1 ? 's' : ''} faite{doneCount > 1 ? 's' : ''} sur {totalSteps}
           </p>
-          <div className="mt-5 w-full max-w-xs">
-            <div className="mb-1 flex justify-between text-xs text-encre-700">
-              <span>Niveau {lp.level}</span>
-              <span>
-                {lp.current} / {lp.needed} XP
-              </span>
-            </div>
-            <XpBar ratio={lp.ratio} label="Expérience" />
-          </div>
           {doneCount < totalSteps && (
-            <Button size="grand" className="mt-8 w-full flex-row-reverse" icon={<ArrowRight aria-hidden />} onClick={() => setView('etape')} autoFocus>
+            <Button variant="fantome" className="mt-8 flex-row-reverse" icon={<ArrowRight aria-hidden />} onClick={() => setView('etape')} autoFocus>
               Étape suivante
             </Button>
           )}

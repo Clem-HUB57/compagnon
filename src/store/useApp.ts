@@ -3,6 +3,7 @@ import * as engine from '../logic/engine';
 import type { ActionEvents, AppState } from '../types';
 import { clearState, loadState, requestPersistence, saveState } from './storage';
 import { clearPhotos } from '../lib/photos';
+import { clearRecordings } from '../lib/recordings';
 
 export type CabaneTab = 'compagnon' | 'ile' | 'carnet' | 'album';
 
@@ -135,6 +136,7 @@ export const useApp = create<AppStore>((set, get) => ({
     try {
       await clearState();
       await clearPhotos();
+      await clearRecordings();
     } catch {
       /* rien à effacer */
     }

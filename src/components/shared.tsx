@@ -1,8 +1,9 @@
 import { Volume2 } from 'lucide-react';
 import { Companion, type Expression } from '../art/Companion';
-import { speak, voiceAvailable } from '../lib/voice';
+import { playAudio, speak, voiceAvailable } from '../lib/voice';
 import { useReducedMotion } from '../lib/hooks';
 import { useApp } from '../store/useApp';
+import { useRecording } from '../lib/recordings';
 
 /** Le compagnon de l'enfant, avec sa couleur et son accessoire. */
 export function MyCompanion({ expression = 'content', size = 160, bounceKey, breathe = false, className = '' }: { expression?: Expression; size?: number; bounceKey?: number; breathe?: boolean; className?: string }) {
@@ -18,13 +19,14 @@ export function MyCompanion({ expression = 'content', size = 160, bounceKey, bre
   );
 }
 
-export function SpeakButton({ text, className = '' }: { text: string; className?: string }) {
+export function SpeakButton({ text, stepId, className = '' }: { text: string; stepId?: string; className?: string }) {
   const enabled = useApp((s) => s.data.preferences.voiceEnabled);
-  if (!enabled || !voiceAvailable()) return null;
+  const recording = useRecording(stepId);
+  if (!enabled || (!voiceAvailable() && !recording)) return null;
   return (
     <button
       type="button"
-      onClick={() => speak(text)}
+      onClick={() => (recording ? playAudio(recording) : speak(text))}
       aria-label="Lire à voix haute"
       title="Lire à voix haute"
       className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-lagon-100 text-lagon-900 transition hover:bg-lagon-300 ${className}`}

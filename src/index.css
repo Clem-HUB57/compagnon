@@ -12,6 +12,25 @@ html.texte-grand {
   font-size: 112.5%;
 }
 
+/* Police adaptée à la dyslexie : lettres lestées, plus d'espace entre lettres, mots et lignes */
+html.police-dys body,
+html.police-dys button,
+html.police-dys input,
+html.police-dys textarea,
+html.police-dys select {
+  font-family: 'OpenDyslexic', 'Lexend Variable', system-ui, sans-serif;
+}
+html.police-dys body {
+  line-height: 1.6;
+}
+/* OpenDyslexic est naturellement large : on compense un peu la taille */
+html.police-dys {
+  font-size: 92%;
+}
+html.police-dys.texte-grand {
+  font-size: 104%;
+}
+
 body {
   @apply bg-sable-100 font-sans text-encre-900 antialiased;
   min-height: 100dvh;

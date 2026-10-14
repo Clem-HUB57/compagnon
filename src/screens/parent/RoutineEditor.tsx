@@ -1,5 +1,7 @@
-import { ArrowDown, ArrowUp, CalendarPlus, ChevronDown, ChevronUp, Eye, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarPlus, ChevronDown, ChevronUp, Eye, ListPlus, Plus, Trash2 } from 'lucide-react';
 import { StepPhoto } from '../../components/StepPhoto';
+import { VoiceRecorder } from '../../components/VoiceRecorder';
+import { guessIllustration, parseStepLines } from '../../logic/setup';
 import { buildReminderIcs, downloadIcs } from '../../lib/calendar';
 import { useState } from 'react';
 import { ILLUSTRATIONS, RoutineArt } from '../../art/RoutineArt';
@@ -30,6 +32,18 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
   };
   const remove = (id: string) => setR((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== id).map((s, i) => ({ ...s, order: i })) }));
   const [weekdaysOnly, setWeekdaysOnly] = useState(false);
+  const [autoArt, setAutoArt] = useState(initial.isCustom && initial.illustration === 'etoile');
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const addLines = () => {
+    const lines = parseStepLines(pasteText);
+    setR((prev) => {
+      const kept = prev.steps.filter((x) => x.title.trim());
+      return { ...prev, steps: [...kept, ...lines.map((title, i) => ({ ...newStep(kept.length + i), title }))] };
+    });
+    setPasteText('');
+    setPasteOpen(false);
+  };
   const [icsDone, setIcsDone] = useState(false);
   const addShowAdult = () => {
     const st = { ...newStep(steps.length), title: SHOW_ADULT_TITLE, description: 'Montre ce que tu as fait et partage ce moment.', helpText: 'Va chercher un adulte et dis : « tu viens voir ? »', easierText: 'Appelle un adulte.' };
@@ -49,75 +63,45 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
         onSave(r);
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <label className="etiquette" htmlFor="r-titre">
-            Titre de la routine
-          </label>
-          <input id="r-titre" className="champ" required maxLength={60} value={r.title} onChange={(e) => setR({ ...r, title: e.target.value })} />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="etiquette" htmlFor="r-desc">
-            Description courte
-          </label>
-          <input id="r-desc" className="champ" maxLength={140} value={r.description} onChange={(e) => setR({ ...r, description: e.target.value })} />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="etiquette" htmlFor="r-trigger">
-            Déclencheur du plan « Quand…, alors je commence »
-          </label>
-          <input id="r-trigger" className="champ" maxLength={80} placeholder="Quand je rentre de l’école" value={r.trigger} onChange={(e) => setR({ ...r, trigger: e.target.value })} />
-          <p className="mt-1 text-xs text-encre-500">Idéalement choisi avec l’enfant : un moment précis et habituel.</p>
-        </div>
-        <div>
-          <label className="etiquette" htmlFor="r-cat">
-            Catégorie
-          </label>
-          <select id="r-cat" className="champ" value={r.category} onChange={(e) => setR({ ...r, category: e.target.value as RoutineCategory })}>
-            <option value="ecole">École</option>
-            <option value="maison">Maison</option>
-            <option value="soin">Prendre soin de moi</option>
-            <option value="perso">Mes routines</option>
-          </select>
-        </div>
-        <div>
-          <label className="etiquette" htmlFor="r-moment">
-            Moment de la journée
-          </label>
-          <select id="r-moment" className="champ" value={r.moment} onChange={(e) => setR({ ...r, moment: e.target.value as Moment })}>
-            {(Object.keys(MOMENT_LABELS) as Moment[]).map((m) => (
-              <option key={m} value={m}>
-                {MOMENT_LABELS[m]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="etiquette" htmlFor="r-min">
-            Durée indicative (minutes)
-          </label>
-          <input id="r-min" className="champ" type="number" min={1} max={120} value={r.estimatedMinutes} onChange={(e) => setR({ ...r, estimatedMinutes: Number(e.target.value) })} />
+      <div>
+        <label className="etiquette" htmlFor="r-titre">
+          Nom de la routine
+        </label>
+        <div className="flex items-center gap-3">
+          <input
+            id="r-titre"
+            className="champ flex-1"
+            required
+            maxLength={60}
+            value={r.title}
+            onChange={(e) => setR((prev) => ({ ...prev, title: e.target.value, illustration: autoArt ? guessIllustration(e.target.value) : prev.illustration }))}
+          />
+          <RoutineArt illustration={r.illustration} size={52} />
         </div>
       </div>
-
       <fieldset>
-        <legend className="etiquette">Illustration</legend>
-        <div className="flex flex-wrap gap-2">
-          {ILLUSTRATIONS.map((il) => (
+        <legend className="etiquette">Quand ?</legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {(Object.keys(MOMENT_LABELS) as Moment[]).map((m) => (
             <button
-              key={il.key}
+              key={m}
               type="button"
-              aria-pressed={r.illustration === il.key}
-              aria-label={il.label}
-              title={il.label}
-              onClick={() => setR({ ...r, illustration: il.key })}
-              className={`rounded-3xl border-4 transition ${r.illustration === il.key ? 'border-lagon-500' : 'border-transparent'}`}
+              aria-pressed={r.moment === m}
+              onClick={() => setR({ ...r, moment: m })}
+              className={`min-h-[44px] rounded-2xl border-2 px-3 text-sm font-semibold transition ${r.moment === m ? 'border-lagon-500 bg-lagon-100 text-lagon-900' : 'border-sable-300 bg-white text-encre-700'}`}
             >
-              <RoutineArt illustration={il.key} size={56} />
+              {MOMENT_LABELS[m]}
             </button>
           ))}
         </div>
       </fieldset>
+      <div>
+        <label className="etiquette" htmlFor="r-trigger">
+          Déclencheur « Quand…, alors je commence » (facultatif)
+        </label>
+        <input id="r-trigger" className="champ" maxLength={80} placeholder="Quand je rentre de l’école" value={r.trigger} onChange={(e) => setR({ ...r, trigger: e.target.value })} />
+        <p className="mt-1 text-xs text-encre-500">L’enfant peut aussi le choisir lui-même depuis l’accueil, c’est même mieux.</p>
+      </div>
 
       <section>
         <div className="mb-2 flex items-center justify-between">
@@ -142,13 +126,6 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
                     value={st.title}
                     onChange={(e) => setStep(st.id, { title: e.target.value })}
                   />
-                  <select aria-label={`XP de l’étape ${i + 1}`} className="rounded-xl border-2 border-sable-200 bg-white px-2 py-2 text-sm" value={st.xpReward} onChange={(e) => setStep(st.id, { xpReward: Number(e.target.value) })}>
-                    {XP_CHOICES.map((x) => (
-                      <option key={x} value={x}>
-                        {x} XP
-                      </option>
-                    ))}
-                  </select>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1">
                   <IconButton label="Monter" className="h-9 w-9" onClick={() => move(i, -1)} disabled={i === 0}>
@@ -165,7 +142,7 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
                     Indispensable
                   </label>
                   <button type="button" className="ml-auto inline-flex items-center gap-1 rounded-xl px-2 py-1 text-sm text-lagon-900 hover:bg-lagon-100" aria-expanded={expanded} onClick={() => setOpenStep(expanded ? null : st.id)}>
-                    Détails et aides {expanded ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
+                    Aides, voix, photo {expanded ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
                   </button>
                 </div>
                 {expanded && (
@@ -183,8 +160,24 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
                       <textarea id={`h-${st.id}`} className="champ" rows={2} maxLength={200} value={st.helpText} onChange={(e) => setStep(st.id, { helpText: e.target.value })} />
                     </div>
                     <div>
+                      <p className="etiquette">Votre voix (lue à la place de la voix de synthèse)</p>
+                      <VoiceRecorder stepId={st.id} />
+                    </div>
+                    <div>
                       <p className="etiquette">Photo modèle (facultative, gardée sur cet appareil)</p>
                       <StepPhoto stepId={st.id} compact />
+                    </div>
+                    <div>
+                      <label className="etiquette" htmlFor={`xp-${st.id}`}>
+                        Récompense
+                      </label>
+                      <select id={`xp-${st.id}`} className="champ" value={st.xpReward} onChange={(e) => setStep(st.id, { xpReward: Number(e.target.value) })}>
+                        {XP_CHOICES.map((x) => (
+                          <option key={x} value={x}>
+                            {x} XP{x === 10 ? ' (habituel)' : x > 10 ? ' : étape qui coûte plus' : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="etiquette" htmlFor={`t-${st.id}`}>
@@ -217,9 +210,28 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
             );
           })}
         </ol>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {pasteOpen && (
+          <div className="mt-3 rounded-3xl bg-white p-3 shadow-carte">
+            <label htmlFor="r-coller" className="etiquette">
+              Ajouter plusieurs étapes, une par ligne
+            </label>
+            <textarea id="r-coller" className="champ" rows={4} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={'Sors ton cahier\nOuvre-le à la bonne page'} />
+            <div className="mt-2 flex gap-2">
+              <Button size="petit" disabled={parseStepLines(pasteText).length === 0} onClick={addLines}>
+                Ajouter {parseStepLines(pasteText).length || ''} étape{parseStepLines(pasteText).length > 1 ? 's' : ''}
+              </Button>
+              <Button size="petit" variant="fantome" onClick={() => setPasteOpen(false)}>
+                Fermer
+              </Button>
+            </div>
+          </div>
+        )}
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Button variant="doux" icon={<Plus aria-hidden />} onClick={add}>
             Ajouter une étape
+          </Button>
+          <Button variant="doux" icon={<ListPlus aria-hidden />} onClick={() => setPasteOpen(true)}>
+            Coller une liste
           </Button>
           {!steps.some((s) => s.title === SHOW_ADULT_TITLE) && (
             <Button variant="doux" icon={<Eye aria-hidden />} onClick={addShowAdult}>
@@ -232,6 +244,59 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
         </p>
       </section>
 
+      <details className="group rounded-3xl bg-sable-200/60 p-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between font-semibold">
+          Plus d’options
+          <ChevronDown size={18} className="transition group-open:rotate-180" aria-hidden />
+        </summary>
+        <p className="mt-1 text-sm text-encre-700">Description, catégorie, illustration, photo de fierté, rappel dans l’agenda.</p>
+        <div className="mt-4 flex flex-col gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className="etiquette" htmlFor="r-desc">
+            Description courte
+          </label>
+          <input id="r-desc" className="champ" maxLength={140} value={r.description} onChange={(e) => setR({ ...r, description: e.target.value })} />
+        </div>
+        <div>
+          <label className="etiquette" htmlFor="r-cat">
+            Catégorie
+          </label>
+          <select id="r-cat" className="champ" value={r.category} onChange={(e) => setR({ ...r, category: e.target.value as RoutineCategory })}>
+            <option value="ecole">École</option>
+            <option value="maison">Maison</option>
+            <option value="soin">Prendre soin de moi</option>
+            <option value="perso">Mes routines</option>
+          </select>
+        </div>
+        <div>
+          <label className="etiquette" htmlFor="r-min">
+            Durée indicative (minutes)
+          </label>
+          <input id="r-min" className="champ" type="number" min={1} max={120} value={r.estimatedMinutes} onChange={(e) => setR({ ...r, estimatedMinutes: Number(e.target.value) })} />
+        </div>
+      </div>
+      <fieldset>
+        <legend className="etiquette">Illustration</legend>
+        <div className="flex flex-wrap gap-2">
+          {ILLUSTRATIONS.map((il) => (
+            <button
+              key={il.key}
+              type="button"
+              aria-pressed={r.illustration === il.key}
+              aria-label={il.label}
+              title={il.label}
+              onClick={() => {
+                setAutoArt(false);
+                setR({ ...r, illustration: il.key });
+              }}
+              className={`rounded-3xl border-4 transition ${r.illustration === il.key ? 'border-lagon-500' : 'border-transparent'}`}
+            >
+              <RoutineArt illustration={il.key} size={48} />
+            </button>
+          ))}
+        </div>
+      </fieldset>
       <section className="rounded-3xl bg-white p-4 shadow-carte">
         <label className="flex items-start gap-3">
           <input type="checkbox" className="mt-1 h-4 w-4 accent-lagon-700" checked={proudPhotoEnabled(r)} onChange={(e) => setR({ ...r, proudPhoto: e.target.checked })} />
@@ -274,6 +339,8 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
         </div>
         {icsDone && <p className="mt-2 text-sm text-mousse-700" role="status">Ouvrez le fichier téléchargé : votre agenda propose d’ajouter le rappel.</p>}
       </section>
+        </div>
+      </details>
 
       <div className="sticky bottom-0 -mx-1 flex flex-wrap gap-2 bg-sable-100/95 px-1 py-3 backdrop-blur">
         <Button type="submit" className="flex-1" disabled={filled === 0 || !r.title.trim()}>
