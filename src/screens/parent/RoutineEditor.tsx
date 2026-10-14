@@ -2,9 +2,10 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide
 import { useState } from 'react';
 import { ILLUSTRATIONS, RoutineArt } from '../../art/RoutineArt';
 import { Button, IconButton } from '../../components/ui';
-import { newStep } from '../../logic/engine';
+import { CALM_TOOLS } from '../../data/calm';
+import { MOMENT_LABELS, newStep } from '../../logic/engine';
 import { XP_MAX, XP_MIN } from '../../logic/progression';
-import type { Routine, RoutineCategory, Step } from '../../types';
+import type { Moment, Routine, RoutineCategory, Step } from '../../types';
 
 const XP_CHOICES = [5, 10, 15, 20, 25, 30].filter((x) => x >= XP_MIN && x <= XP_MAX);
 
@@ -65,7 +66,20 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
           <select id="r-cat" className="champ" value={r.category} onChange={(e) => setR({ ...r, category: e.target.value as RoutineCategory })}>
             <option value="ecole">École</option>
             <option value="maison">Maison</option>
+            <option value="soin">Prendre soin de moi</option>
             <option value="perso">Mes routines</option>
+          </select>
+        </div>
+        <div>
+          <label className="etiquette" htmlFor="r-moment">
+            Moment de la journée
+          </label>
+          <select id="r-moment" className="champ" value={r.moment} onChange={(e) => setR({ ...r, moment: e.target.value as Moment })}>
+            {(Object.keys(MOMENT_LABELS) as Moment[]).map((m) => (
+              <option key={m} value={m}>
+                {MOMENT_LABELS[m]}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -153,6 +167,25 @@ export function RoutineEditor({ initial, onSave, onCancel, onDelete }: { initial
                         « Montre-moi comment commencer »
                       </label>
                       <textarea id={`h-${st.id}`} className="champ" rows={2} maxLength={200} value={st.helpText} onChange={(e) => setStep(st.id, { helpText: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="etiquette" htmlFor={`t-${st.id}`}>
+                        Exercice du coin calme à proposer (facultatif)
+                      </label>
+                      <select
+                        id={`t-${st.id}`}
+                        className="champ"
+                        value={st.tool ?? ''}
+                        onChange={(e) => setStep(st.id, { tool: (e.target.value || undefined) as Step['tool'] })}
+                      >
+                        <option value="">Aucun</option>
+                        {CALM_TOOLS.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                        <option value="plan">Préparer le plan tempête</option>
+                      </select>
                     </div>
                     <div>
                       <label className="etiquette" htmlFor={`e-${st.id}`}>

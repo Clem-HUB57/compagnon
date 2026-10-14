@@ -45,7 +45,8 @@ export const FINDING_REASONS: Record<FindingEvent, string> = {
   reprise: 'Pour avoir repris après une pause.',
   aide: 'Pour avoir demandé de l’aide, puis terminé ta mission.',
   decouverte: 'Pour avoir essayé une nouvelle routine.',
-  autonomie: 'Pour avoir fait une routine en autonomie.'
+  autonomie: 'Pour avoir fait une routine en autonomie.',
+  calme: 'Pour avoir pris soin de toi dans ton coin calme.'
 };
 
 /** Les trouvailles arrivent à ces étapes (1re fois, 3e fois, 6e fois…). */

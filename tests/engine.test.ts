@@ -23,10 +23,20 @@ import {
   sortedSteps,
   startOrResume,
   suggestRoutine,
+  suggestForMoment,
+  momentSummary,
+  currentMoment,
+  doneTodayIds,
+  localDay,
+  addFromLibrary,
+  setTrigger,
+  completeCalmTool,
+  setCalmPlan,
   upsertRoutine
 } from '../src/logic/engine';
 import { COMPLETION_BONUS, levelForXp, thresholdFor, worldStageForLevel } from '../src/logic/progression';
 import type { AppState } from '../src/types';
+import { LIBRARY } from '../src/data/library';
 
 function fresh(): AppState {
   return setProfile(createInitialState(), 'Léa', 'moki', 'Moki');
@@ -256,13 +266,110 @@ describe('Espace parent', () => {
   });
 });
 
-describe('Suggestion', () => {
+describe('Ma journée, bibliothèque et plan', () => {
+  const dm = { matin: 5, apresEcole: 12, soir: 18 };
+
+  it('détermine le moment de la journée', () => {
+    expect(currentMoment(dm, new Date(2026, 9, 13, 7, 30))).toBe('matin');
+    expect(currentMoment(dm, new Date(2026, 9, 13, 16, 0))).toBe('apres-ecole');
+    expect(currentMoment(dm, new Date(2026, 9, 13, 20, 0))).toBe('soir');
+    expect(currentMoment(dm, new Date(2026, 9, 13, 2, 0))).toBe('soir');
+  });
+
   it('suggère d’abord une routine commencée', () => {
     const { state } = startOrResume(fresh(), 'nettoyer-toilettes');
     expect(suggestRoutine(state)?.id).toBe('nettoyer-toilettes');
   });
-  it('suggère les devoirs un mardi après l’école', () => {
-    const tuesday = new Date(2026, 9, 13, 16, 30);
-    expect(suggestRoutine(fresh(), tuesday)?.id).toBe('commencer-devoirs');
+
+  it('suggère une seule quête par moment et passe à la suivante quand elle est faite', () => {
+    const afternoon = new Date(2026, 9, 13, 16, 30);
+    let s = fresh();
+    expect(suggestRoutine(s, afternoon)?.id).toBe('commencer-devoirs');
+    s = runRoutine(s, 'commencer-devoirs').state;
+    expect(momentSummary(s, 'apres-ecole').done).toBe(1);
+    // Plus rien après l'école : la suggestion du moment est vide.
+    expect(suggestForMoment(s, 'apres-ecole')).toBeUndefined();
+    expect(suggestForMoment(s, 'soir')?.id).toBe('preparer-sac');
+  });
+
+  it('compte les routines faites aujourd’hui en heure locale', () => {
+    const s = runRoutine(fresh(), 'linge-sale').state;
+    expect(doneTodayIds(s).has('linge-sale')).toBe(true);
+    expect(localDay(new Date(2026, 9, 13, 23, 30))).toBe('2026-10-13');
+  });
+
+  it('ajoute un modèle de la bibliothèque avec des identifiants uniques', () => {
+    const tpl = LIBRARY.find((t) => t.templateId === 'modele-dents-matin')!;
+    const r1 = addFromLibrary(fresh(), tpl);
+    const routine = getRoutine(r1.state, r1.routineId)!;
+    expect(routine.moment).toBe('matin');
+    expect(routine.templateId).toBe('modele-dents-matin');
+    expect(routine.steps).toHaveLength(tpl.steps.length);
+    const r2 = addFromLibrary(r1.state, tpl);
+    const ids = r2.state.routines.flatMap((r) => r.steps.map((st) => st.id));
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(suggestForMoment(r1.state, 'matin')?.id).toBe(r1.routineId);
+  });
+
+  it('tous les modèles de la bibliothèque ont des étapes complètes', () => {
+    for (const t of LIBRARY) {
+      expect(t.steps.length).toBeGreaterThanOrEqual(3);
+      for (const [title, , help, easier] of t.steps) {
+        expect(title && help && easier).toBeTruthy();
+      }
+    }
+  });
+
+  it('l’enfant peut choisir son plan « Quand… alors… »', () => {
+    const s = setTrigger(fresh(), 'preparer-sac', '  Quand j’ai mis mon pyjama ');
+    expect(getRoutine(s, 'preparer-sac')!.trigger).toBe('Quand j’ai mis mon pyjama');
+  });
+
+  it('met à niveau une ancienne sauvegarde sans moments', () => {
+    const old = JSON.parse(exportData(fresh()));
+    for (const r of old.data.routines) delete r.moment;
+    delete old.data.preferences.dayMoments;
+    const s = parseImport(JSON.stringify(old));
+    expect(getRoutine(s, 'commencer-devoirs')!.moment).toBe('apres-ecole');
+    expect(s.preferences.dayMoments.soir).toBe(18);
+  });
+});
+
+describe('Coin calme', () => {
+  it('récompense l’entraînement avec un plafond quotidien et une trouvaille', () => {
+    const day = new Date(2026, 9, 14, 17, 0);
+    const a = completeCalmTool(fresh(), 'respirer', day);
+    expect(a.events.xpGained).toBe(15);
+    expect(a.events.findings[0]?.reason).toBe('calme');
+    const b = completeCalmTool(a.state, 'bouger', day);
+    const c = completeCalmTool(b.state, 'presser', day);
+    expect(b.events.xpGained).toBe(15);
+    expect(c.events.xpGained).toBe(0); // plafond : 2 entraînements récompensés par jour
+    expect(c.state.calm.history).toHaveLength(3);
+    // Rien d'autre que l'outil et l'heure n'est enregistré.
+    expect(Object.keys(c.state.calm.history[0]).sort()).toEqual(['at', 'id', 'tool']);
+    const next = completeCalmTool(c.state, 'respirer', new Date(2026, 9, 15, 17, 0));
+    expect(next.events.xpGained).toBe(15);
+  });
+
+  it('enregistre le plan tempête de l’enfant', () => {
+    const s = setCalmPlan(fresh(), ' je sens la colère monter ', 'presser');
+    expect(s.calm.plan).toEqual({ feeling: 'je sens la colère monter', tool: 'presser' });
+    expect(setCalmPlan(s, '   ', 'presser').calm.plan).toBeNull();
+  });
+
+  it('les quêtes d’entraînement de la bibliothèque proposent un exercice', () => {
+    const tpl = LIBRARY.find((t) => t.templateId === 'modele-respirer')!;
+    const r = addFromLibrary(fresh(), tpl);
+    expect(getRoutine(r.state, r.routineId)!.steps.some((st) => st.tool === 'respirer')).toBe(true);
+  });
+
+  it('une ancienne sauvegarde sans coin calme est mise à niveau', () => {
+    const old = JSON.parse(exportData(fresh()));
+    delete old.data.calm;
+    delete old.data.progression.eventCounts.calme;
+    const s = parseImport(JSON.stringify(old));
+    expect(s.calm).toEqual({ plan: null, history: [] });
+    expect(completeCalmTool(s, 'eau').state.progression.eventCounts.calme).toBe(1);
   });
 });

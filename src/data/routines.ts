@@ -3,17 +3,18 @@ import type { Routine, Step } from '../types';
 // Routines d'EXEMPLE fournies avec l'application (isDemo = true).
 // Toutes sont modifiables dans l'espace parent.
 
-type StepSeed = [title: string, description: string, helpText: string, easierText: string, xp?: number];
+export type StepSeed = [title: string, description: string, helpText: string, easierText: string, xp?: number, tool?: Step['tool']];
 
-function steps(routineId: string, seeds: StepSeed[]): Step[] {
-  return seeds.map(([title, description, helpText, easierText, xp], i) => ({
+export function steps(routineId: string, seeds: StepSeed[]): Step[] {
+  return seeds.map(([title, description, helpText, easierText, xp, tool], i) => ({
     id: `${routineId}-e${i + 1}`,
     title,
     description,
     helpText,
     easierText,
     xpReward: xp ?? 10,
-    order: i
+    order: i,
+    ...(tool ? { tool } : {})
   }));
 }
 
@@ -27,7 +28,8 @@ export const DEMO_ROUTINES: Routine[] = [
     category: 'ecole',
     isCustom: false,
     isDemo: true,
-    trigger: 'Quand j’ai fini de goûter',
+    trigger: 'Quand j’ai fini de manger',
+    moment: 'soir',
     steps: steps('preparer-sac', [
       ['Pose ton sac à l’endroit habituel', 'Là où tu le prépares tous les soirs.', 'Va chercher ton sac et pose-le par terre, ouvert, devant toi.', 'Touche simplement ton sac. Tu l’as trouvé ? Bravo, c’est le début.'],
       ['Regarde ce dont tu as besoin demain', 'Ton emploi du temps ou ton cahier de textes t’aide.', 'Ouvre ton cahier de textes à la page de demain et lis les matières.', 'Lis seulement la première matière de demain.'],
@@ -47,6 +49,7 @@ export const DEMO_ROUTINES: Routine[] = [
     isCustom: false,
     isDemo: true,
     trigger: 'Quand j’ai fini de goûter',
+    moment: 'apres-ecole',
     steps: steps('commencer-devoirs', [
       ['Choisis la matière à commencer', 'Celle qui te paraît la plus facile, c’est très bien.', 'Regarde la liste des devoirs et pose ton doigt sur une matière.', 'Dis à voix haute le nom d’une matière.'],
       ['Sors le cahier', 'Pose-le sur ton bureau.', 'Ouvre ton sac et cherche la couleur du cahier de cette matière.', 'Ouvre seulement ton sac.'],
@@ -66,6 +69,7 @@ export const DEMO_ROUTINES: Routine[] = [
     isCustom: false,
     isDemo: true,
     trigger: 'Quand j’ai fini de jouer',
+    moment: 'libre',
     steps: steps('ranger-activite', [
       ['Choisis une petite zone', 'Ton bureau, un coin du tapis, une étagère…', 'Montre du doigt un coin de la pièce : c’est ta zone.', 'Choisis juste une zone de la taille d’une serviette.'],
       ['Ramasse les objets au sol', 'Seulement dans ta zone.', 'Commence par le plus gros objet et pose-le sur ton lit ou ton bureau.', 'Ramasse un seul objet.'],
@@ -85,6 +89,7 @@ export const DEMO_ROUTINES: Routine[] = [
     isCustom: false,
     isDemo: true,
     trigger: 'Quand on me dit que la vaisselle est propre',
+    moment: 'libre',
     steps: steps('vider-lave-vaisselle', [
       ['Ouvre le lave-vaisselle', 'Attention, ça peut être encore chaud.', 'Tire la porte doucement et attends quelques secondes.', 'Pose juste ta main sur la poignée.'],
       ['Range les couverts', 'Fourchettes, couteaux, cuillères : chacun dans sa case.', 'Prends le panier à couverts et pose-le sur le plan de travail.', 'Range seulement les cuillères.'],
@@ -103,6 +108,7 @@ export const DEMO_ROUTINES: Routine[] = [
     isCustom: false,
     isDemo: true,
     trigger: 'Quand le repas est fini',
+    moment: 'soir',
     steps: steps('debarrasser-table', [
       ['Apporte ton assiette et tes couverts', 'Jusqu’à l’évier ou au lave-vaisselle.', 'Pose tes couverts dans ton assiette, puis porte-la avec deux mains.', 'Prends seulement ton assiette.'],
       ['Ramène ton verre', 'Un aller de plus.', 'Prends ton verre et pose-le à côté de l’évier.', 'Touche ton verre et emporte-le.'],
@@ -120,6 +126,7 @@ export const DEMO_ROUTINES: Routine[] = [
     isCustom: false,
     isDemo: true,
     trigger: 'Quand je me mets en pyjama',
+    moment: 'soir',
     steps: steps('linge-sale', [
       ['Ramasse les vêtements portés aujourd’hui', 'Dans ta chambre et la salle de bain.', 'Commence par les vêtements que tu viens d’enlever.', 'Ramasse une seule chaussette.'],
       ['Vérifie les poches', 'Mouchoirs, cailloux, trésors…', 'Mets ta main dans chaque poche du pantalon.', 'Vérifie une seule poche.'],
@@ -136,6 +143,7 @@ export const DEMO_ROUTINES: Routine[] = [
     isCustom: false,
     isDemo: true,
     trigger: 'Quand c’est mon jour de mission',
+    moment: 'libre',
     steps: steps('nettoyer-toilettes', [
       ['Prépare ton matériel', 'Gants, produit, brosse, chiffon.', 'Mets les gants en premier, puis prends la brosse.', 'Mets un seul gant.'],
       ['Mets le produit dans la cuvette', 'Un tour suffit.', 'Soulève l’abattant et fais un petit tour de produit sous le rebord.', 'Soulève seulement l’abattant.'],

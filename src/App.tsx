@@ -3,6 +3,7 @@ import { MyCompanion } from './components/shared';
 import { useReducedMotion } from './lib/hooks';
 import { Adventures } from './screens/Adventures';
 import { Cabane } from './screens/Cabane';
+import { Calm } from './screens/Calm';
 import { Home } from './screens/Home';
 import { Mission } from './screens/Mission';
 import { MissionEnd } from './screens/MissionEnd';
@@ -67,6 +68,9 @@ export function App() {
         break;
       case 'parent':
         screen = <Parent />;
+        break;
+      case 'calme':
+        screen = <Calm returnTo={route.returnTo} />;
         break;
       default:
         screen = <Home />;

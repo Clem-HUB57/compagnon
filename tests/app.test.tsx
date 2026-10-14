@@ -21,7 +21,7 @@ describe('Parcours enfant', () => {
     click(/C’est parti/);
     expect(useApp.getState().data.profile?.companionId).toBe('boulon');
     expect(screen.getByText(/Coucou Noé/)).toBeInTheDocument();
-    expect(screen.getByText(/Quête suggérée/)).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: /Moments de ma journée/ })).toBeInTheDocument();
   });
 
   it('lance une routine, valide une étape et fait réagir le compagnon', () => {
@@ -86,6 +86,81 @@ describe('Parcours enfant', () => {
   });
 });
 
+describe('Ma journée, plan et sablier', () => {
+  it('affiche les trois moments et laisse l’enfant choisir son plan', () => {
+    withProfile();
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: /Soir/ }));
+    expect(screen.getByRole('heading', { name: 'Préparer mon sac' })).toBeInTheDocument();
+    click('Changer');
+    fireEvent.click(screen.getByRole('radio', { name: /Quand j’ai mis mon pyjama/ }));
+    expect(useApp.getState().data.routines.find((r) => r.id === 'preparer-sac')?.trigger).toBe('Quand j’ai mis mon pyjama');
+    expect(screen.getByText(/Quand j’ai mis mon pyjama, alors je commence/)).toBeInTheDocument();
+  });
+
+  it('active le sablier facultatif pendant une mission', () => {
+    withProfile();
+    render(<App />);
+    click('Aventures');
+    const card = screen.getByRole('heading', { name: 'Préparer mon sac' }).closest('li')!;
+    fireEvent.click(within(card).getByRole('button', { name: 'Lancer' }));
+    expect(screen.queryByRole('img', { name: /Sablier en cours/ })).not.toBeInTheDocument();
+    click('Sablier');
+    click('Avec sablier');
+    click('2 min');
+    click('C’est noté');
+    expect(screen.getByRole('img', { name: /Sablier en cours/ })).toBeInTheDocument();
+    expect(useApp.getState().data.preferences.displayPreferences.timerMinutes).toBe(2);
+  });
+});
+
+describe('Coin calme', () => {
+  it('propose la météo intérieure puis un outil, et récompense l’entraînement', () => {
+    withProfile();
+    render(<App />);
+    click('Mon coin calme');
+    fireEvent.click(screen.getByRole('radio', { name: /Orage/ }));
+    expect(screen.getByText(/Merci de me le dire/)).toBeInTheDocument();
+    click(/Bouger pour vider/);
+    for (let i = 0; i < 3; i++) click('C’est fait');
+    click('J’ai fini');
+    expect(screen.getByText('Tu as pris soin de toi.')).toBeInTheDocument();
+    expect(screen.getByText('+15 XP d’entraînement')).toBeInTheDocument();
+    expect(useApp.getState().data.calm.history[0].tool).toBe('bouger');
+  });
+
+  it('enregistre un plan tempête', () => {
+    withProfile();
+    render(<App />);
+    click('Mon coin calme');
+    click('Passer');
+    click('Préparer mon plan tempête');
+    click('… je sens la colère monter');
+    click(/Presser un squishy/);
+    click('Enregistrer mon plan');
+    expect(useApp.getState().data.calm.plan).toEqual({ feeling: 'je sens la colère monter', tool: 'presser' });
+    expect(screen.getByText(/Mon plan/)).toBeInTheDocument();
+  });
+
+  it('depuis une pause, mène au coin calme puis ramène à la quête', () => {
+    withProfile();
+    render(<App />);
+    click('Aventures');
+    const card = screen.getByRole('heading', { name: 'Préparer mon sac' }).closest('li')!;
+    fireEvent.click(within(card).getByRole('button', { name: 'Lancer' }));
+    click(/besoin d’aide/);
+    click(/besoin d’une pause/);
+    click('Aller dans mon coin calme');
+    click('Passer');
+    click('Voir les autres outils');
+    click('De l’eau');
+    click('C’est fait');
+    click('J’ai fini');
+    click('Revenir à ma quête');
+    expect(screen.getByRole('heading', { name: /Pose ton sac/ })).toBeInTheDocument();
+  });
+});
+
 describe('Espace parent', () => {
   function openParent() {
     withProfile();
@@ -126,6 +201,15 @@ describe('Espace parent', () => {
     const r = useApp.getState().data.routines.find((x) => x.title === 'Brosser mes dents');
     expect(r?.isCustom).toBe(true);
     expect(r?.steps).toHaveLength(2);
+  });
+
+  it('ajoute une routine depuis la bibliothèque', () => {
+    openParent();
+    click('Ajouter depuis la bibliothèque');
+    click('Ajouter « Me brosser les dents »');
+    const r = useApp.getState().data.routines.find((x) => x.templateId === 'modele-dents-matin');
+    expect(r?.moment).toBe('matin');
+    expect(screen.getAllByText('Ajoutée').length).toBeGreaterThan(0);
   });
 
   it('affiche les outils de données (export et suppression)', () => {

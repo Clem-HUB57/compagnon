@@ -9,6 +9,7 @@ import type { AidLevel, RoutineCategory } from '../types';
 const TABS: { id: RoutineCategory; label: string }[] = [
   { id: 'ecole', label: 'École' },
   { id: 'maison', label: 'Maison' },
+  { id: 'soin', label: 'Moi' },
   { id: 'perso', label: 'Mes routines' }
 ];
 

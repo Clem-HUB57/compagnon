@@ -3,8 +3,13 @@
 
 import { COSMETICS, FINDING_MILESTONES, STARTING_COSMETICS } from '../data/cosmetics';
 import { DEMO_ROUTINES } from '../data/routines';
+import { CALM_XP, CALM_XP_PER_DAY, type ToolId } from '../data/calm';
+import { type RoutineTemplate } from '../data/library';
+import { steps } from '../data/routines';
 import type {
   ActionEvents,
+  DayMoments,
+  Moment,
   AidLevel,
   AppState,
   Badge,
@@ -45,7 +50,7 @@ export function initialProgression(): Progression {
     equipped: { color: 'couleur-origine', accessory: null, ambiance: 'ambiance-jour', decor: [] },
     pendingChoices: [],
     routineStats: {},
-    eventCounts: { reprise: 0, aide: 0, decouverte: 0, autonomie: 0 },
+    eventCounts: { reprise: 0, aide: 0, decouverte: 0, autonomie: 0, calme: 0 },
     badges: [],
     rewardedMilestones: [],
     unseen: []
@@ -59,12 +64,14 @@ export function createInitialState(now = new Date()): AppState {
     routines: clone(DEMO_ROUTINES),
     sessions: [],
     progression: initialProgression(),
+    calm: { plan: null, history: [] },
     preferences: {
       soundEnabled: true,
       reducedMotion: 'systeme',
       voiceEnabled: true,
       autoRead: false,
-      displayPreferences: { textSize: 'normal' }
+      displayPreferences: { textSize: 'normal', showTimer: false, timerMinutes: 5 },
+      dayMoments: { matin: 5, apresEcole: 12, soir: 18 }
     },
     createdAt: now.toISOString()
   };
@@ -310,16 +317,8 @@ function finishSession(state: AppState, sessionId: string, now: Date, events: Ac
   const toCheck: FindingEvent[] = [...triggered];
   if (sess.pauses > 0) toCheck.push('reprise');
   for (const ev of toCheck) {
-    // Au plus une trouvaille par type d'événement et par session.
-    const milestone = FINDING_MILESTONES.find((m) => m <= p.eventCounts[ev] && !p.rewardedMilestones.includes(`${ev}:${m}`));
-    if (milestone === undefined) continue;
-    const item = nextFinding(p);
-    if (!item) break;
-    p.unlockedCosmetics.push(item);
-    p.unseen.push(item);
-    p.rewardedMilestones.push(`${ev}:${milestone}`);
-    events.findings.push({ cosmeticId: item, reason: ev });
-    break; // une seule trouvaille par session : la récompense garde son sens
+    // Au plus une trouvaille par session : la récompense garde son sens.
+    if (grantFinding(p, ev, events)) break;
   }
 
   // Écusson quand une routine est faite pour la première fois en autonomie
@@ -343,6 +342,19 @@ function finishSession(state: AppState, sessionId: string, now: Date, events: Ac
     events.offer = next;
   }
   return { state: s, events };
+}
+
+/** Donne une trouvaille si un palier de l'événement est atteint et pas encore récompensé. */
+function grantFinding(p: Progression, ev: FindingEvent, events: ActionEvents): boolean {
+  const milestone = FINDING_MILESTONES.find((m) => m <= p.eventCounts[ev] && !p.rewardedMilestones.includes(`${ev}:${m}`));
+  if (milestone === undefined) return false;
+  const item = nextFinding(p);
+  if (!item) return false;
+  p.unlockedCosmetics.push(item);
+  p.unseen.push(item);
+  p.rewardedMilestones.push(`${ev}:${milestone}`);
+  events.findings.push({ cosmeticId: item, reason: ev });
+  return true;
 }
 
 export function nextFinding(p: Progression): string | null {
@@ -493,6 +505,7 @@ export function newCustomRoutine(): Routine {
     isCustom: true,
     isDemo: false,
     trigger: '',
+    moment: 'libre',
     steps: [newStep(0)]
   };
 }
@@ -507,30 +520,142 @@ export function resetDemo(state: AppState, now = new Date()): AppState {
   return { ...fresh, profile: state.profile ? clone(state.profile) : null, preferences: clone(state.preferences) };
 }
 
-// ---------------------------------------------------------------- Suggestion de mission
+// ---------------------------------------------------------------- Coin calme
 
-/** Une seule mission suggérée : d'abord une routine commencée, puis selon le moment de la journée. */
+/**
+ * L'enfant a utilisé un outil du coin calme. On récompense la stratégie, jamais l'émotion :
+ * aucune émotion n'est enregistrée, et les XP sont plafonnés par jour.
+ */
+export function completeCalmTool(state: AppState, tool: ToolId, now = new Date()): { state: AppState; events: ActionEvents } {
+  const s = clone(state);
+  const events = emptyEvents();
+  const today = localDay(now);
+  const usesToday = s.calm.history.filter((h) => localDay(new Date(h.at)) === today).length;
+  s.calm.history = [...s.calm.history, { id: makeId('calme'), at: now.toISOString(), tool }].slice(-200);
+  if (usesToday < CALM_XP_PER_DAY) {
+    events.xpGained = CALM_XP;
+    addXp(s, CALM_XP, events);
+  }
+  s.progression.eventCounts.calme = (s.progression.eventCounts.calme ?? 0) + 1;
+  grantFinding(s.progression, 'calme', events);
+  return { state: s, events };
+}
+
+export function setCalmPlan(state: AppState, feeling: string, tool: ToolId): AppState {
+  const s = clone(state);
+  const f = feeling.trim().slice(0, 80);
+  s.calm.plan = f ? { feeling: f, tool } : null;
+  return s;
+}
+
+// ---------------------------------------------------------------- Ma journée
+
+export const MOMENTS: { id: Exclude<Moment, 'libre'>; label: string }[] = [
+  { id: 'matin', label: 'Matin' },
+  { id: 'apres-ecole', label: 'Après l’école' },
+  { id: 'soir', label: 'Soir' }
+];
+
+export const MOMENT_LABELS: Record<Moment, string> = {
+  matin: 'Le matin',
+  'apres-ecole': 'Après l’école',
+  soir: 'Le soir',
+  libre: 'À tout moment'
+};
+
+/** Date locale au format AAAA-MM-JJ (et non UTC, pour ne pas changer de jour à 22 h). */
+export function localDay(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Moment de la journée en cours selon les heures réglées par le parent. */
+export function currentMoment(dm: DayMoments, now = new Date()): Exclude<Moment, 'libre'> {
+  const h = now.getHours();
+  if (h >= dm.soir || h < dm.matin) return 'soir';
+  if (h >= dm.apresEcole) return 'apres-ecole';
+  return 'matin';
+}
+
+export function doneTodayIds(state: AppState, now = new Date()): Set<string> {
+  const today = localDay(now);
+  return new Set(
+    state.sessions.filter((x) => x.status === 'terminee' && x.completedAt && localDay(new Date(x.completedAt)) === today).map((x) => x.routineId)
+  );
+}
+
+/** Routines d'un moment, avec ce qui a été fait aujourd'hui. */
+export function momentSummary(state: AppState, moment: Moment, now = new Date()) {
+  const done = doneTodayIds(state, now);
+  const routines = state.routines.filter((r) => r.moment === moment && r.steps.length > 0);
+  return { total: routines.length, done: routines.filter((r) => done.has(r.id)).length };
+}
+
+/**
+ * Une seule quête suggérée pour un moment donné :
+ * 1) une routine commencée de ce moment, 2) la première routine du moment pas encore faite aujourd'hui.
+ * Retourne undefined quand tout est fait pour ce moment.
+ */
+export function suggestForMoment(state: AppState, moment: Moment, now = new Date()): Routine | undefined {
+  const inMoment = state.routines.filter((r) => r.moment === moment && r.steps.length > 0);
+  const openIds = state.sessions
+    .filter((x) => x.status === 'en_cours' || x.status === 'en_pause')
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .map((x) => x.routineId);
+  const open = openIds.map((id) => inMoment.find((r) => r.id === id)).find(Boolean);
+  if (open) return open;
+  const done = doneTodayIds(state, now);
+  return inMoment.find((r) => !done.has(r.id));
+}
+
+/** Suggestion générale : une quête commencée, sinon celle du moment présent, sinon une routine libre. */
 export function suggestRoutine(state: AppState, now = new Date()): Routine | undefined {
-  if (state.routines.length === 0) return undefined;
   const open = state.sessions
     .filter((x) => x.status === 'en_cours' || x.status === 'en_pause')
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
     .map((x) => getRoutine(state, x.routineId))
     .find(Boolean);
   if (open) return open;
-  const hour = now.getHours();
-  const day = now.getDay(); // 0 dimanche … 6 samedi
-  const schoolTomorrow = day >= 0 && day <= 4; // dimanche à jeudi
-  const today = now.toISOString().slice(0, 10);
-  const doneToday = new Set(
-    state.sessions.filter((x) => x.status === 'terminee' && x.completedAt?.startsWith(today)).map((x) => x.routineId)
-  );
-  const candidates = state.routines.filter((r) => r.steps.length > 0 && !doneToday.has(r.id));
-  const byId = (id: string) => candidates.find((r) => r.id === id);
-  if (schoolTomorrow && hour >= 16 && hour < 18) return byId('commencer-devoirs') ?? byId('preparer-sac') ?? candidates[0];
-  if (schoolTomorrow && hour >= 18) return byId('preparer-sac') ?? candidates[0];
-  if (hour >= 19) return byId('linge-sale') ?? candidates[0];
-  return byId('ranger-activite') ?? candidates[0] ?? state.routines[0];
+  return suggestForMoment(state, currentMoment(state.preferences.dayMoments, now), now) ?? suggestForMoment(state, 'libre', now);
+}
+
+// ---------------------------------------------------------------- Plan « Quand… alors… » et bibliothèque
+
+/** L'enfant (ou le parent) choisit le déclencheur de sa routine. */
+export function setTrigger(state: AppState, routineId: string, trigger: string): AppState {
+  const s = clone(state);
+  const r = s.routines.find((x) => x.id === routineId);
+  if (r) r.trigger = trigger.trim().slice(0, 80);
+  return s;
+}
+
+/** Idées de déclencheurs proposées à l'enfant selon le moment de la routine. */
+export const TRIGGER_IDEAS: Record<Moment, string[]> = {
+  matin: ['Quand je sors du lit', 'Quand je suis habillé', 'Quand j’ai fini de manger', 'Quand j’entends le réveil'],
+  'apres-ecole': ['Quand je rentre de l’école', 'Quand j’ai fini de goûter', 'Quand j’ai posé mon manteau', 'Quand le goûter est rangé'],
+  soir: ['Quand j’ai fini de manger', 'Quand j’ai mis mon pyjama', 'Quand on me dit que c’est l’heure', 'Avant d’allumer un écran'],
+  libre: ['Quand j’ai fini de jouer', 'Quand on me le demande', 'Avant d’allumer un écran', 'Quand je vois que c’est en désordre']
+};
+
+export function addFromLibrary(state: AppState, template: RoutineTemplate): { state: AppState; routineId: string } {
+  const s = clone(state);
+  const id = makeId('routine');
+  const routine: Routine = {
+    id,
+    title: template.title,
+    description: template.description,
+    illustration: template.illustration,
+    estimatedMinutes: template.estimatedMinutes,
+    category: template.category,
+    moment: template.moment,
+    trigger: template.trigger,
+    isCustom: false,
+    isDemo: false,
+    templateId: template.templateId,
+    steps: steps(id, template.steps)
+  };
+  s.routines.push(routine);
+  return { state: s, routineId: id };
 }
 
 // ---------------------------------------------------------------- Import / export
@@ -548,6 +673,8 @@ export function parseImport(json: string): AppState {
   return migrate(data);
 }
 
+const DEFAULT_MOMENTS: Record<string, Moment> = Object.fromEntries(DEMO_ROUTINES.map((r) => [r.id, r.moment]));
+
 /** Met à niveau une sauvegarde ancienne ou incomplète. */
 export function migrate(raw: Partial<AppState>): AppState {
   const base = createInitialState();
@@ -564,13 +691,15 @@ export function migrate(raw: Partial<AppState>): AppState {
     ...base,
     ...raw,
     schemaVersion: SCHEMA_VERSION,
-    routines: raw.routines ?? base.routines,
+    routines: (raw.routines ?? base.routines).map((r) => ({ ...r, moment: r.moment ?? DEFAULT_MOMENTS[r.id] ?? 'libre' })),
     sessions: raw.sessions ?? [],
+    calm: { plan: raw.calm?.plan ?? null, history: raw.calm?.history ?? [] },
     progression: p,
     preferences: {
       ...base.preferences,
       ...(raw.preferences ?? {}),
-      displayPreferences: { ...base.preferences.displayPreferences, ...(raw.preferences?.displayPreferences ?? {}) }
+      displayPreferences: { ...base.preferences.displayPreferences, ...(raw.preferences?.displayPreferences ?? {}) },
+      dayMoments: { ...base.preferences.dayMoments, ...(raw.preferences?.dayMoments ?? {}) }
     }
   } as AppState;
 }

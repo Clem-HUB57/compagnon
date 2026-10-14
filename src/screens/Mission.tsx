@@ -1,4 +1,6 @@
-import { ArrowRight, Check, Circle, Coffee, HandHelping, Lightbulb, ListChecks, Sparkle, Wand2, X } from 'lucide-react';
+import { ArrowRight, Check, Circle, Coffee, HandHelping, Hourglass as HourglassIcon, Lightbulb, ListChecks, Sparkle, Wand2, Wind, X } from 'lucide-react';
+import { CalmPlanEditor, CalmToolRunner } from './Calm';
+import { Hourglass } from '../components/Hourglass';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RoutineArt } from '../art/RoutineArt';
 import { MyCompanion, SpeakButton, SpeechBubble } from '../components/shared';
@@ -26,6 +28,11 @@ export function Mission({ sessionId }: { sessionId: string }) {
 
   const [view, setView] = useState<View>(session?.status === 'en_pause' ? 'pause' : 'etape');
   const [helpOpen, setHelpOpen] = useState(false);
+  const [timerOpen, setTimerOpen] = useState(false);
+  const [toolOpen, setToolOpen] = useState(false);
+  const timer = data.preferences.displayPreferences;
+  const setTimer = (patch: Partial<typeof timer>) =>
+    update((s) => ({ ...s, preferences: { ...s.preferences, displayPreferences: { ...s.preferences.displayPreferences, ...patch } } }));
   const [listOpen, setListOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [reward, setReward] = useState<{ xp: number; message: string; key: number } | null>(null);
@@ -141,6 +148,14 @@ export function Mission({ sessionId }: { sessionId: string }) {
             })}
           </ol>
         </div>
+        <IconButton
+          label="Sablier"
+          aria-pressed={timer.showTimer}
+          onClick={() => setTimerOpen(true)}
+          className={timer.showTimer ? 'bg-ciel-100 text-encre-900' : ''}
+        >
+          <HourglassIcon aria-hidden />
+        </IconButton>
         <IconButton label="Voir toutes les étapes" onClick={() => setListOpen(true)}>
           <ListChecks aria-hidden />
         </IconButton>
@@ -169,10 +184,18 @@ export function Mission({ sessionId }: { sessionId: string }) {
               </ul>
             )}
             {session.aidLevel === 'autonome' && <p className="mt-3 text-encre-700">Tu connais cette routine. Fais-la à ta façon, puis reviens ici.</p>}
+            {unit.steps.length === 1 && current.tool && (
+              <Button variant="secondaire" className="mt-4 w-full" icon={<Wind aria-hidden />} onClick={() => setToolOpen(true)}>
+                {current.tool === 'plan' ? 'Ouvrir mon plan tempête' : 'Faire l’exercice avec mon compagnon'}
+              </Button>
+            )}
           </section>
           <div className="flex flex-1 flex-col items-center justify-center gap-2 py-4">
             {startedBanner && <SpeechBubble className="text-center">Tu as commencé, c’est le plus dur ! On continue ?</SpeechBubble>}
-            <MyCompanion size={startedBanner ? 120 : 140} expression={startedBanner ? 'joie' : 'content'} breathe />
+            <div className="flex items-end justify-center gap-6">
+              <MyCompanion size={timer.showTimer ? 110 : startedBanner ? 120 : 140} expression={startedBanner ? 'joie' : 'content'} breathe />
+              {timer.showTimer && <Hourglass key={`${current.id}-${timer.timerMinutes}`} minutes={timer.timerMinutes} size={120} />}
+            </div>
           </div>
           <div className="flex flex-col gap-3">
             <Button size="grand" onClick={validate} disabled={busy} icon={<Check aria-hidden size={28} />} silent>
@@ -290,6 +313,9 @@ export function Mission({ sessionId }: { sessionId: string }) {
             >
               Je reprends
             </Button>
+            <Button variant="secondaire" icon={<Wind aria-hidden />} onClick={() => navigate({ name: 'calme', returnTo: sessionId })}>
+              Aller dans mon coin calme
+            </Button>
             <Button variant="secondaire" onClick={() => navigate({ name: 'aventures' })}>
               Choisir une autre mission
             </Button>
@@ -320,6 +346,49 @@ export function Mission({ sessionId }: { sessionId: string }) {
           ))}
         </div>
         <p className="mt-4 text-center text-sm text-encre-500">Demander de l’aide ne fait rien perdre.</p>
+      </Sheet>
+
+      {/* ------------------------------------------------ Exercice du coin calme lié à une étape */}
+      <Sheet open={toolOpen && !!current?.tool} onClose={() => setToolOpen(false)} title={current?.tool === 'plan' ? 'Mon plan tempête' : 'Exercice'}>
+        {current?.tool === 'plan' ? (
+          <CalmPlanEditor onSaved={() => setToolOpen(false)} />
+        ) : current?.tool ? (
+          <CalmToolRunner tool={current.tool} onDone={() => setToolOpen(false)} />
+        ) : null}
+      </Sheet>
+
+      {/* ------------------------------------------------ Sablier facultatif */}
+      <Sheet open={timerOpen} onClose={() => setTimerOpen(false)} title="Le sablier">
+        <p className="mb-4 text-encre-700">Le sablier montre le temps qui passe. Ce n’est pas une course : quand il est vide, rien ne se passe, tu continues à ton rythme.</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant={timer.showTimer ? 'principal' : 'secondaire'} aria-pressed={timer.showTimer} onClick={() => setTimer({ showTimer: true })}>
+            Avec sablier
+          </Button>
+          <Button variant={!timer.showTimer ? 'principal' : 'secondaire'} aria-pressed={!timer.showTimer} onClick={() => setTimer({ showTimer: false })}>
+            Sans sablier
+          </Button>
+        </div>
+        {timer.showTimer && (
+          <fieldset className="mt-5">
+            <legend className="etiquette">Durée pour chaque étape</legend>
+            <div className="grid grid-cols-4 gap-2">
+              {[2, 5, 10, 15].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={timer.timerMinutes === m}
+                  onClick={() => setTimer({ timerMinutes: m })}
+                  className={`min-h-[48px] rounded-2xl border-2 font-semibold transition ${timer.timerMinutes === m ? 'border-lagon-500 bg-lagon-100' : 'border-sable-300 bg-white hover:border-lagon-300'}`}
+                >
+                  {m} min
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        <Button className="mt-5 w-full" onClick={() => setTimerOpen(false)}>
+          C’est noté
+        </Button>
       </Sheet>
 
       {/* ------------------------------------------------ Liste des étapes */}

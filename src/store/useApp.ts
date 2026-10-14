@@ -12,7 +12,8 @@ export type Route =
   | { name: 'mission'; sessionId: string }
   | { name: 'fin'; sessionId: string }
   | { name: 'cabane'; tab?: CabaneTab }
-  | { name: 'parent' };
+  | { name: 'parent' }
+  | { name: 'calme'; returnTo?: string };
 
 /** Ce qui s'est passé pendant la mission en cours (non persisté). */
 export interface MissionContext {

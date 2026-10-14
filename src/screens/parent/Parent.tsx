@@ -1,8 +1,10 @@
-import { ArrowLeft, Download, FileUp, Info, Pencil, Plus, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, Download, FileUp, Info, Pencil, Plus, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { RoutineArt } from '../../art/RoutineArt';
-import { Button, IconButton, Pill } from '../../components/ui';
-import { deleteRoutine, exportData, newCustomRoutine, parseImport, resetDemo, routineStats, setAidLevel, upsertRoutine } from '../../logic/engine';
+import { Button, IconButton, Pill, Sheet } from '../../components/ui';
+import { getTool } from '../../data/calm';
+import { LIBRARY, LIBRARY_GROUPS } from '../../data/library';
+import { addFromLibrary, deleteRoutine, MOMENT_LABELS, exportData, newCustomRoutine, parseImport, resetDemo, routineStats, setAidLevel, upsertRoutine } from '../../logic/engine';
 import { useApp } from '../../store/useApp';
 import type { AidLevel, AppState, Routine, Session } from '../../types';
 import { AID_LABELS } from '../Adventures';
@@ -110,6 +112,8 @@ function RoutinesTab() {
   const update = useApp((s) => s.update);
   const [editing, setEditing] = useState<{ routine: Routine; isNew: boolean } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const added = new Set(data.routines.map((r) => r.templateId).filter(Boolean));
 
   if (editing) {
     return (
@@ -144,9 +148,55 @@ function RoutinesTab() {
           {saved}
         </p>
       )}
-      <Button icon={<Plus aria-hidden />} onClick={() => setEditing({ routine: newCustomRoutine(), isNew: true })}>
-        Créer une routine
-      </Button>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button icon={<BookOpen aria-hidden />} onClick={() => setLibraryOpen(true)}>
+          Ajouter depuis la bibliothèque
+        </Button>
+        <Button variant="secondaire" icon={<Plus aria-hidden />} onClick={() => setEditing({ routine: newCustomRoutine(), isNew: true })}>
+          Créer une routine
+        </Button>
+      </div>
+      <Sheet open={libraryOpen} onClose={() => setLibraryOpen(false)} title="Bibliothèque de routines">
+        <p className="mb-4 text-sm text-encre-700">Des modèles prêts à l’emploi. Une fois ajoutés, vous pouvez tout modifier : étapes, aides, moment, déclencheur.</p>
+        {LIBRARY_GROUPS.map((g) => (
+          <section key={g} className="mb-5">
+            <h3 className="mb-2 font-semibold">{g}</h3>
+            <ul className="flex flex-col gap-2">
+              {LIBRARY.filter((t) => t.group === g).map((t) => {
+                const isAdded = added.has(t.templateId);
+                return (
+                  <li key={t.templateId} className="flex items-center gap-3 rounded-3xl bg-white p-3 shadow-carte">
+                    <RoutineArt illustration={t.illustration} size={48} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold leading-snug">{t.title}</p>
+                      <p className="text-xs text-encre-500">
+                        {t.steps.length} étapes · ≈ {t.estimatedMinutes} min · {MOMENT_LABELS[t.moment].toLowerCase()}
+                      </p>
+                    </div>
+                    {isAdded ? (
+                      <span className="inline-flex items-center gap-1 text-sm font-medium text-mousse-700">
+                        <Check size={16} aria-hidden /> Ajoutée
+                      </span>
+                    ) : (
+                      <Button
+                        size="petit"
+                        variant="secondaire"
+                        aria-label={`Ajouter « ${t.title} »`}
+                        onClick={() => {
+                          update((s) => addFromLibrary(s, t).state);
+                          setSaved(`« ${t.title} » a été ajoutée.`);
+                        }}
+                      >
+                        Ajouter
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </Sheet>
       {data.routines.length === 0 && <p className="carte p-5 text-encre-700">Aucune routine. Créez-en une, ou réinitialisez les données d’exemple dans l’onglet Données.</p>}
       {data.routines.map((r) => {
         const st = routineStats(data, r.id);
@@ -158,6 +208,7 @@ function RoutinesTab() {
                 <h3 className="font-semibold">{r.title}</h3>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <Pill>{r.steps.length} étapes</Pill>
+                  <Pill tone="lagon">{MOMENT_LABELS[r.moment]}</Pill>
                   {r.isDemo && <Pill tone="corail">Exemple</Pill>}
                   {r.isCustom && <Pill tone="lagon">Personnalisée</Pill>}
                   {st.completions > 0 && <Pill tone="mousse">Faite {st.completions} fois</Pill>}
@@ -203,28 +254,59 @@ const STATUS_LABEL: Record<Session['status'], string> = {
 
 function HistoryTab() {
   const sessions = useApp((s) => s.data.sessions);
+  const calm = useApp((s) => s.data.calm);
   const list = useMemo(() => [...sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 40), [sessions]);
+  const calmList = useMemo(() => [...calm.history].reverse().slice(0, 15), [calm.history]);
   const fmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-  if (list.length === 0) return <p className="carte p-5 text-encre-700">Aucune routine réalisée pour l’instant. L’historique apparaîtra ici.</p>;
   return (
-    <div>
-      <p className="mb-3 text-sm text-encre-700">Un journal descriptif, sans score ni comparaison. Il sert à repérer ce qui aide, pas à évaluer.</p>
-      <ul className="flex flex-col gap-2">
-        {list.map((s) => (
-          <li key={s.id} className="carte p-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-semibold">{s.routineTitle}</span>
-              <span className="text-sm capitalize text-encre-500">{fmt.format(new Date(s.startedAt))}</span>
-            </div>
-            <p className="mt-1 text-sm text-encre-700">
-              {s.completedStepIds.length} étape{s.completedStepIds.length > 1 ? 's' : ''} sur {s.totalSteps} · {STATUS_LABEL[s.status]} · mode {AID_LABELS[s.aidLevel].toLowerCase()}
-              {s.helpUsed > 0 && ` · aide demandée ${s.helpUsed} fois`}
-              {s.pauses > 0 && ` · ${s.pauses} pause${s.pauses > 1 ? 's' : ''}`}
-              {s.mood && ` · ressenti : ${s.mood}`}
-            </p>
-          </li>
-        ))}
-      </ul>
+    <div className="flex flex-col gap-6">
+      <section>
+        <p className="mb-3 text-sm text-encre-700">Un journal descriptif, sans score ni comparaison. Il sert à repérer ce qui aide, pas à évaluer.</p>
+        {list.length === 0 ? (
+          <p className="carte p-5 text-encre-700">Aucune routine réalisée pour l’instant. L’historique apparaîtra ici.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {list.map((s) => (
+              <li key={s.id} className="carte p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-semibold">{s.routineTitle}</span>
+                  <span className="text-sm capitalize text-encre-500">{fmt.format(new Date(s.startedAt))}</span>
+                </div>
+                <p className="mt-1 text-sm text-encre-700">
+                  {s.completedStepIds.length} étape{s.completedStepIds.length > 1 ? 's' : ''} sur {s.totalSteps} · {STATUS_LABEL[s.status]} · mode {AID_LABELS[s.aidLevel].toLowerCase()}
+                  {s.helpUsed > 0 && ` · aide demandée ${s.helpUsed} fois`}
+                  {s.pauses > 0 && ` · ${s.pauses} pause${s.pauses > 1 ? 's' : ''}`}
+                  {s.mood && ` · ressenti : ${s.mood}`}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section>
+        <h3 className="font-semibold">Coin calme</h3>
+        <p className="mb-3 mt-1 text-sm text-encre-700">
+          Les outils utilisés. La météo intérieure de l’enfant n’est jamais enregistrée.
+          {calm.plan && (
+            <>
+              {' '}
+              Son plan tempête : « Quand {calm.plan.feeling}, alors je choisis : {getTool(calm.plan.tool).short.toLowerCase()} ».
+            </>
+          )}
+        </p>
+        {calmList.length === 0 ? (
+          <p className="carte p-5 text-encre-700">Le coin calme n’a pas encore été utilisé.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {calmList.map((h) => (
+              <li key={h.id} className="carte flex flex-wrap items-baseline justify-between gap-2 p-4">
+                <span className="font-medium">{getTool(h.tool).name}</span>
+                <span className="text-sm capitalize text-encre-500">{fmt.format(new Date(h.at))}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
@@ -258,6 +340,38 @@ function SettingsTab() {
         checked={prefs.displayPreferences.textSize === 'grand'}
         onChange={(v) => set({ displayPreferences: { ...prefs.displayPreferences, textSize: v ? 'grand' : 'normal' } })}
       />
+      <fieldset className="rounded-2xl bg-white px-4 py-3 shadow-carte">
+        <legend className="sr-only">Ma journée</legend>
+        <p className="font-medium">Ma journée</p>
+        <p className="text-sm text-encre-500">Heure à laquelle commence chaque moment. L’accueil propose les quêtes du moment en cours.</p>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {(
+            [
+              ['matin', 'Matin'],
+              ['apresEcole', 'Après l’école'],
+              ['soir', 'Soir']
+            ] as const
+          ).map(([k, label]) => (
+            <div key={k}>
+              <label htmlFor={`h-${k}`} className="etiquette">
+                {label}
+              </label>
+              <select
+                id={`h-${k}`}
+                className="champ px-2"
+                value={prefs.dayMoments[k]}
+                onChange={(e) => set({ dayMoments: { ...prefs.dayMoments, [k]: Number(e.target.value) } })}
+              >
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>
+                    {h} h
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      </fieldset>
       <div className="rounded-2xl bg-white px-4 py-3 shadow-carte">
         <label htmlFor="anim" className="block font-medium">
           Animations

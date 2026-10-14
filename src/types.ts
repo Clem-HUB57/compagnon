@@ -1,7 +1,11 @@
+import type { ToolId } from './data/calm';
 // Modèle de données de Compagnon.
 // Toutes les données restent sur l'appareil (IndexedDB). Aucune donnée sensible.
 
-export type RoutineCategory = 'ecole' | 'maison' | 'perso';
+export type RoutineCategory = 'ecole' | 'maison' | 'soin' | 'perso';
+
+/** Moments de la journée. « libre » = pas de moment précis. */
+export type Moment = 'matin' | 'apres-ecole' | 'soir' | 'libre';
 
 export type IllustrationKey =
   | 'sac'
@@ -11,6 +15,14 @@ export type IllustrationKey =
   | 'table'
   | 'linge'
   | 'toilettes'
+  | 'vetements'
+  | 'dejeuner'
+  | 'dents'
+  | 'douche'
+  | 'lit'
+  | 'livre'
+  | 'animal'
+  | 'respirer'
   | 'etoile';
 
 /** Niveau d'aide d'une routine : l'aide est retirée progressivement (estompage). */
@@ -24,6 +36,8 @@ export interface Step {
   helpText: string;
   /** Version plus petite et concrète de l'étape (« Rends cette étape plus facile »). */
   easierText: string;
+  /** Outil du coin calme à faire pendant l'étape (facultatif). */
+  tool?: ToolId | 'plan';
   /** XP gagnés (bornés entre XP_MIN et XP_MAX). */
   xpReward: number;
   order: number;
@@ -42,6 +56,10 @@ export interface Routine {
   isDemo: boolean;
   /** Déclencheur du plan « Quand…, alors… » (ex. « Quand je rentre de l'école »). */
   trigger: string;
+  /** Moment de la journée où la routine est proposée. */
+  moment: Moment;
+  /** Identifiant du modèle de la bibliothèque dont elle provient, le cas échéant. */
+  templateId?: string;
 }
 
 export type SessionStatus = 'en_cours' | 'en_pause' | 'terminee' | 'mise_de_cote';
@@ -77,7 +95,7 @@ export interface Cosmetic {
   minLevel: number;
 }
 
-export type FindingEvent = 'reprise' | 'aide' | 'decouverte' | 'autonomie';
+export type FindingEvent = 'reprise' | 'aide' | 'decouverte' | 'autonomie' | 'calme';
 
 export interface RoutineStats {
   completions: number;
@@ -137,6 +155,17 @@ export interface Profile {
 
 export interface DisplayPreferences {
   textSize: 'normal' | 'grand';
+  /** Sablier visuel facultatif pendant les missions. */
+  showTimer: boolean;
+  /** Durée du sablier, en minutes. */
+  timerMinutes: number;
+}
+
+/** Heure (0-23) à laquelle commence chaque moment de la journée. */
+export interface DayMoments {
+  matin: number;
+  apresEcole: number;
+  soir: number;
 }
 
 export interface Preferences {
@@ -146,6 +175,13 @@ export interface Preferences {
   voiceEnabled: boolean;
   autoRead: boolean;
   displayPreferences: DisplayPreferences;
+  dayMoments: DayMoments;
+}
+
+/** Coin calme : plan tempête et journal d'utilisation (sans enregistrer les émotions). */
+export interface CalmState {
+  plan: { feeling: string; tool: ToolId } | null;
+  history: { id: string; at: string; tool: ToolId }[];
 }
 
 export interface AppState {
@@ -155,6 +191,7 @@ export interface AppState {
   sessions: Session[];
   progression: Progression;
   preferences: Preferences;
+  calm: CalmState;
   createdAt: string;
 }
 
